@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+service.log
+service_error.log
+
+# Virtual environment
+venv/
+
+# Environment variables (Porcupine key, etc.)
+.env
+
+# OS stuff
+Thumbs.db
+Desktop.ini
+
+# IDE-specific
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
