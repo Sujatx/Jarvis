@@ -12,6 +12,7 @@ import socket
 
 import numpy as np
 import sounddevice as sd
+from dotenv import load_dotenv
 
 # Third-party UI for tray
 from PIL import Image
@@ -28,11 +29,26 @@ try:
 except Exception:
     winsound = None
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    base = getattr(sys, "_MEIPASS", os.path.dirname(__file__))
+    return os.path.join(base, relative_path)
+
+
 # --------------------- Config ---------------------
+# Determine application root (where the .exe or script is located)
+if getattr(sys, 'frozen', False):
+    APP_ROOT = os.path.dirname(sys.executable)
+else:
+    APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+# Load .env from the application root
+load_dotenv(os.path.join(APP_ROOT, ".env"))
+
 BASE_DIR = os.path.dirname(__file__)
-LOG_PATH = os.path.join(BASE_DIR, "service.log")
-ICONS_DIR = os.path.join(BASE_DIR, "icons")
-SOUNDS_DIR = os.path.join(BASE_DIR, "sounds")
+LOG_PATH = os.path.join(APP_ROOT, "service.log") # Log to app root, not temp dir
+ICONS_DIR = resource_path("icons")
+SOUNDS_DIR = resource_path("sounds")
 CREATE_NO_WINDOW = 0x08000000  # hide intermediate console windows for Popen
 
 # sound files (project-local)
@@ -81,7 +97,12 @@ def play_sound(path):
 
 def count_processes(exe_name):
     try:
-        out = subprocess.check_output(['tasklist', '/FI', f'IMAGENAME eq {exe_name}'], stderr=subprocess.DEVNULL)
+        # Use CREATE_NO_WINDOW to prevent CMD flash on Windows
+        out = subprocess.check_output(
+            ['tasklist', '/FI', f'IMAGENAME eq {exe_name}'], 
+            stderr=subprocess.DEVNULL,
+            creationflags=CREATE_NO_WINDOW
+        )
         text = out.decode('cp1252', errors='ignore')
         lines = [L for L in text.splitlines() if L.strip()]
         count = sum(1 for L in lines if exe_name.lower() in L.lower())
