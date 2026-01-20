@@ -50,12 +50,12 @@ CHROME_PROFILE=Profile 1
 **To run from source:**
 ```bash
 pip install -r requirements.txt
-python clap_launcher.py
+python jarvis.py
 ```
 
 **To build the executable:**
 ```bash
-python -m PyInstaller clap_launcher.spec
+python -m PyInstaller jarvis.spec
 ```
 
 ---
@@ -70,7 +70,7 @@ python -m PyInstaller clap_launcher.spec
     *   **Chrome** -> Notion (Second Brain)
 
 ### Customizing Apps
-To change which applications are launched, modify the `launch_all_apps` function in `clap_launcher.py`.
+To change which applications are launched, modify the `launch_all_apps` function in `jarvis.py`.
 
 ```python
 def launch_all_apps(self):
@@ -90,8 +90,8 @@ After modifying the script, rebuild the executable if you are using the packaged
 
 ```text
 Jarvis/
-├── clap_launcher.py      # Main application logic
-├── clap_launcher.spec    # PyInstaller build configuration
+├── jarvis.py             # Main application logic
+├── jarvis.spec           # PyInstaller build configuration
 ├── requirements.txt      # Python dependencies
 ├── service.log           # Runtime activity logs
 ├── .env                  # Configuration (Access Keys)

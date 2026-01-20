@@ -12,7 +12,7 @@ The core functionality involves:
 The application is built in Python and uses `sounddevice` and `numpy` for audio processing and `pystray` for the system tray interface. It is designed to be a single-instance application and includes audio feedback for different states (wake, clap, error).
 
 **Current Status (Jan 2026):**
-The application has been successfully packaged into a standalone Windows executable (`dist/clap_launcher.exe`).
+The application has been successfully packaged into a standalone Windows executable (`dist/Jarvis.exe`).
 - **Packaging:** Completed. The executable works with the custom icon and no console flashes.
 - **Environment:** Correctly loads configuration from a `.env` file in the application root.
 - **Stability:** Dynamic libraries for `pvporcupine` are explicitly bundled.
@@ -23,32 +23,26 @@ The application has been successfully packaged into a standalone Windows executa
 *   **1.1 Core Logic:** Persistent background service, Wake-word (Porcupine), Clap detection, Auto-launch apps. (Done)
 *   **1.2 Code Preparation:** Resource path handling (`_MEIPASS`), separation of UI/Tray from core logic, removal of console prints. (Done)
 *   **1.3 Packaging:** Build standalone `.exe` with PyInstaller, including `python-dotenv` for config, custom icons, and proper metadata. (Done)
-    *   *Build Command:* `python -m PyInstaller --noconsole --onefile ...` (See `clap_launcher.spec`)
 
-### Phase 2: System Integration (STATUS: PENDING)
-*   **2.1 Autostart:** Configure Jarvis to launch automatically on Windows startup (via Startup folder shortcut).
-*   **2.2 Optimization:** Minimize CPU load (e.g., reduce audio buffer reads when idle).
-*   **2.3 Error Monitoring:** Implement robust crash recovery and error logging to `errors.log`.
+### Phase 2: User Interface Layer (STATUS: PLANNED)
+*   **2.1 Modern Control Dashboard (PySide6):**
+    *   **Window:** Standard fixed-size (~900×600), opened from Tray -> "Settings". Closing does NOT exit Jarvis.
+    *   **Status Panel (Read-only):** Live status (Idle/Listening/Triggered), last wake-event, last action-event.
+    *   **App Launch Manager:**
+        *   **Installed Apps List:** Icons + Names + Toggle. Sourced from Registry/Start Menu. Toggles update `apps.json` immediately.
+        *   **Browser Sub-Section:** For Chrome/Edge/Firefox, when toggled ON, allows management of a URL list ("Open these links"). Updates `urls.json`.
+    *   **Wake-Word Settings:** Textbox for wake-word. Saves to `config.json`. Marks "restart required".
+    *   **Execution Mode:** Toggle between "Clap" and "Keyword". Saves to `config.json`. Marks "restart required".
+    *   **Restart Jarvis Button:** Visible only when "restart required" is true. Closes listener/tray and relaunches `Jarvis.exe`.
+*   **2.2 Mini Overlay HUD:** Implement a transparent, frameless floating HUD for visual feedback.
 
-### Phase 3: User Interface Layer (STATUS: PLANNED)
-*   **3.1 Modern Control Dashboard:** Create a GUI (using **PySide6**) to:
-    *   View live status (Listening/Awake/Error).
-    *   Adjust sensitivity and settings.
-    *   View logs and manage auto-launch apps.
-*   **3.2 Mini Overlay HUD:** Implement a transparent, frameless floating HUD (Iron Man style) for visual feedback ("Wake word detected", "Launching...").
+### Phase 3: Voice Interaction Upgrade (STATUS: PLANNED)
+*   **3.1 Text-to-Speech (TTS):** Allow Jarvis to speak back.
+*   **3.2 Voice Commands:** Replace/augment claps with spoken commands.
 
-### Phase 4: Voice Interaction Upgrade (STATUS: PLANNED)
-*   **4.1 Text-to-Speech (TTS):** Allow Jarvis to speak back (e.g., "Ready, sir").
-    *   *Options:* Edge TTS, Microsoft SAPI, or ElevenLabs.
-*   **4.2 Voice Commands:** Replace/augment claps with spoken commands (e.g., "Open Notion", "Shutdown system").
-    *   *Tech:* Picovoice Rhino (offline commands) or Vosk (offline STT).
-
-### Phase 5: Automation & AI (STATUS: PLANNED)
-*   **5.1 Advanced Automation:** Execute complex tasks beyond app launching (e.g., "Send WhatsApp", "Search YouTube", "Coding Mode").
-    *   *Tech:* `pywinauto`, Notion API, Chrome automation.
-*   **5.2 AI Brain:** Integrate LLMs for natural language understanding and context memory.
-    *   *Tech:* Local LLM (Ollama) or OpenAI API.
-    *   *Features:* Context awareness, daily summaries, proactive suggestions.
+### Phase 4: Automation & AI (STATUS: PLANNED)
+*   **4.1 Advanced Automation:** Execute complex tasks beyond app launching.
+*   **4.2 AI Brain:** Integrate LLMs for natural language understanding and context memory.
 
 ## Building and Running
 
@@ -65,12 +59,15 @@ The application has been successfully packaged into a standalone Windows executa
     ```
 
 3.  **Run the Application:**
-    - **Script:** `python clap_launcher.py`
-    - **Executable:** Run `dist/clap_launcher.exe`
+    - **Script:** `python jarvis.py`
+    - **Executable:** Run `dist/Jarvis.exe`
 
 ## Development Conventions
 
-*   **Entry Point:** `clap_launcher.py` (contains `UnifiedLauncher` and `TrayManager`).
+*   **Entry Point:** `jarvis.py` (contains `UnifiedLauncher` and `TrayManager`).
 *   **Resources:** Use `resource_path()` for all assets (icons, sounds).
 *   **Logging:** Logs to `service.log` in the application root.
-*   **Configuration:** Secrets managed via `.env`.
+*   **Configuration:** 
+    - Secrets: `.env`
+    - App preferences: `apps.json`, `urls.json`
+    - System settings: `config.json`

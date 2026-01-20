@@ -1,4 +1,4 @@
-# clap_launcher.py — Phase 1 hardened (single-instance + cooldowns + tray + sounds)
+# jarvis.py — Phase 1 hardened (single-instance + cooldowns + tray + sounds)
 import os
 import sys
 import time

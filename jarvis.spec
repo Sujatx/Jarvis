@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['clap_launcher.py'],
+    ['jarvis.py'],
     pathex=[],
     binaries=[],
     datas=[('icons', 'icons'), ('sounds', 'sounds'), ('venv/Lib/site-packages/pvporcupine/resources', 'pvporcupine/resources'), ('venv/Lib/site-packages/pvporcupine/lib', 'pvporcupine/lib')],
@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='clap_launcher',
+    name='Jarvis',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
