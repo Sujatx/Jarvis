@@ -1,5 +1,7 @@
-# jarvis.py — Phase 1 hardened (single-instance + cooldowns + tray + sounds)
+# jarvis.py — Phase 1 hardened + Phase 2 UI Integration
 import os
+os.environ["PYINSTALLER_SAFE_MODE"] = "1"
+
 import sys
 import time
 import signal
@@ -9,6 +11,12 @@ import shutil
 import threading
 import webbrowser
 import socket
+import json
+
+# Dashboard UI
+from dashboard import DashboardWindow
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QMetaObject, Qt
 
 import numpy as np
 import sounddevice as sd
@@ -22,6 +30,9 @@ try:
     import pvporcupine
 except ImportError:
     sys.exit(1)
+
+# Global reference for logging
+_launcher_ref = None
 
 # Optional winsound for Windows WAV playback (built-in)
 try:
@@ -79,6 +90,15 @@ def log(msg):
     try:
         with open(LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+        
+        # UI error reporting
+        if _launcher_ref and "error" in msg.lower() and _launcher_ref.dashboard:
+            QMetaObject.invokeMethod(
+                _launcher_ref.dashboard,
+                "add_error",
+                Qt.QueuedConnection,
+                Qt.Argument("QString", msg)
+            )
     except Exception:
         pass
 
@@ -144,6 +164,7 @@ def acquire_singleton_socket(port):
 # --------------------- Unified Launcher ---------------------
 class UnifiedLauncher:
     def __init__(self, wake_word="jarvis", clap_threshold=1800, debug=False):
+        self.access_key = os.getenv("PORCUPINE_ACCESS_KEY")
         self.wake_word = wake_word.lower()
         self.clap_threshold = clap_threshold
         self.debug = debug
@@ -172,7 +193,7 @@ class UnifiedLauncher:
 
         try:
             self.porcupine = pvporcupine.create(
-                access_key=os.getenv("PORCUPINE_ACCESS_KEY"),
+                access_key=self.access_key,
                 keywords=[self.wake_word]
             )
             log(f"Wake word '{self.wake_word}' loaded.")
@@ -187,43 +208,61 @@ class UnifiedLauncher:
         signal.signal(signal.SIGTERM, self.handle_exit)
         signal.signal(signal.SIGINT, self.handle_exit)
 
-        # Chrome path and profile (Profile 1 by default)
+        # Chrome path and profile
         self.chrome_path = find_chrome_path()
-        if not self.chrome_path:
-            log("WARNING: Chrome not found on common paths or PATH.")
         self.chrome_profile = os.getenv("CHROME_PROFILE") or "Profile 1"
-
-        # VS Code path resolution:
-        default_code_exe = r"C:\Users\muska\AppData\Local\Programs\Microsoft VS Code\Code.exe"
-        if os.path.exists(default_code_exe):
-            self.vscode_exec = default_code_exe
-        else:
-            which_code = shutil.which("code")
-            if which_code:
-                self.vscode_exec = which_code
-            else:
-                alt1 = r"C:\Program Files\Microsoft VS Code\Code.exe"
-                alt2 = r"C:\Program Files (x86)\Microsoft VS Code\Code.exe"
-                if os.path.exists(alt1):
-                    self.vscode_exec = alt1
-                elif os.path.exists(alt2):
-                    self.vscode_exec = alt2
-                else:
-                    self.vscode_exec = None
-                    log("WARNING: VS Code executable not found; 'code' launch may fail.")
-
-        # ensure neutral startup state
-        self.is_active = False
-        self.clap_times = []
 
         # external tray icon reference (set by TrayManager)
         self.tray_icon = None
+        self.dashboard = None
+        self.load_dynamic_config()
+
+    def load_dynamic_config(self):
+        # System settings
+        config_path = os.path.join(APP_ROOT, "config.json")
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                try:
+                    cfg = json.load(f)
+                    self.wake_word = cfg.get("wake_word", "jarvis").lower()
+                    self.mode = cfg.get("mode", "clap")
+                except:
+                    self.mode = "clap"
+        else:
+            self.mode = "clap"
+
+        # Apps to launch
+        apps_path = os.path.join(APP_ROOT, "apps.json")
+        if os.path.exists(apps_path):
+            with open(apps_path, 'r', encoding='utf-8') as f:
+                try:
+                    self.apps_to_launch = json.load(f)
+                except:
+                    self.apps_to_launch = {}
+        else:
+            self.apps_to_launch = {}
+
+        # URLs to open
+        urls_path = os.path.join(APP_ROOT, "urls.json")
+        if os.path.exists(urls_path):
+            with open(urls_path, 'r', encoding='utf-8') as f:
+                try:
+                    self.urls_to_open = json.load(f).get("browser_urls", [])
+                except:
+                    self.urls_to_open = []
+        else:
+            self.urls_to_open = []
+
+    def update_status(self, status, wake=False, action=False):
+        if self.dashboard:
+            last_wake = time.strftime('%H:%M:%S') if wake else None
+            last_action = time.strftime('%H:%M:%S') if action else None
+            self.dashboard.update_status(status, last_wake, last_action)
 
     def handle_exit(self, *args):
         log("Received exit signal.")
         self.running = False
 
-    # audio open with retries so the process stays alive and can recover
     def start_audio_stream(self, retries=5, retry_delay=2.0):
         attempt = 0
         while attempt < retries and self.running:
@@ -303,7 +342,6 @@ class UnifiedLauncher:
                 self.clap_times.append(current_time)
                 self.last_clap_time = current_time
 
-                # only double clap logic
                 if len(self.clap_times) >= 2:
                     span = self.clap_times[-1] - self.clap_times[-2]
                     if span < self.clap_interval:
@@ -311,7 +349,6 @@ class UnifiedLauncher:
                         return 2
 
             self.previous_amplitude = amplitude
-            # cleanup old claps
             if len(self.clap_times) > 0 and current_time - self.clap_times[-1] > self.clap_interval * 2:
                 self.clap_times.clear()
             return 0
@@ -322,192 +359,116 @@ class UnifiedLauncher:
 
     def activate(self):
         now = time.time()
-        # guard wake-cooldown
         if now - self.last_wake_time < WAKE_COOLDOWN:
-            if self.debug:
-                log("Ignored wake due to wake cooldown.")
             return
         self.last_wake_time = now
 
         self.is_active = True
         self.activation_time = time.time()
         self.clap_times.clear()
-        log("Wake word detected. Clap mode active.")
-        # update tray icon to active if present
-        if self.tray_icon:
-            self.tray_icon.set_active_icon()
-
-        # play wake sound
+        log("Wake word detected. Active mode.")
+        
+        self.update_status("Listening for claps...", wake=True)
         play_sound(SOUND_WAKE)
 
     def deactivate(self):
         self.is_active = False
         self.clap_times.clear()
-        log("Clap window ended. Returning to idle (listening for wake word).")
-        if self.tray_icon:
-            self.tray_icon.set_listening_icon()
+        log("Returning to idle.")
+        self.update_status("Idle")
 
     # ------------------- Actions -------------------
     def launch_all_apps(self):
+        self.load_dynamic_config()
         now = time.time()
-        # enforce cooldown so we don't spam launches
         if now - self.last_launch_time < LAUNCH_COOLDOWN:
-            log(f"Launch suppressed — cooldown in effect ({now - self.last_launch_time:.2f}s elapsed).")
             return
         self.last_launch_time = now
 
-        log("Double clap detected. Launching apps.")
+        log("Trigger detected. Launching apps.")
+        self.update_status("Launching...", action=True)
         play_sound(SOUND_CLAP)
 
-        # -------------------------
-        # VS CODE (no cmd popup)
-        # -------------------------
-        try:
-            before = count_processes("Code.exe")
-            if self.vscode_exec:
-                subprocess.Popen([self.vscode_exec], creationflags=CREATE_NO_WINDOW)
+        for name, exe_path in self.apps_to_launch.items():
+            log(f"Launching: {name} ({exe_path})")
+            if any(b in name.lower() for b in ["chrome", "firefox", "edge"]):
+                self.launch_browser(name, exe_path)
             else:
-                subprocess.Popen(["code"], creationflags=CREATE_NO_WINDOW)
-            time.sleep(0.6)
-            after = count_processes("Code.exe")
-            if after > before:
-                log("VS Code launch: detected new Code.exe processes (success).")
-            else:
-                log("VS Code launch: attempted (existing instance or re-used window).")
-        except Exception as e:
-            log(f"ERROR launching VS Code: {e}")
+                try:
+                    subprocess.Popen(f'start "" "{exe_path}"', shell=True, creationflags=CREATE_NO_WINDOW)
+                except Exception as e:
+                    log(f"Launch failed {name}: {e}")
 
-        # -------------------------
-        # CHROME (no cmd popup)
-        # -------------------------
-        if not self.chrome_path:
-            log("Chrome launch skipped: chrome path not found.")
-            return
+    def launch_browser(self, name, exe_path):
+        if "chrome" in name.lower():
+            for i, url in enumerate(self.urls_to_open):
+                args = [exe_path, f'--profile-directory={self.chrome_profile}']
+                if i == 0:
+                    args.append('--new-window')
+                args.append(url)
+                subprocess.Popen(args, creationflags=CREATE_NO_WINDOW)
+        else:
+            # Fallback for Edge/Firefox
+            for url in self.urls_to_open:
+                subprocess.Popen([exe_path, url], creationflags=CREATE_NO_WINDOW)
 
-        profile = self.chrome_profile
-
-        try:
-            before_chrome = count_processes("chrome.exe")
-
-            subprocess.Popen([
-                self.chrome_path,
-                f'--profile-directory={profile}',
-                '--disable-background-mode',
-                '--new-window',
-                "https://chat.openai.com"
-            ], creationflags=CREATE_NO_WINDOW)
-
-            time.sleep(0.7)
-            mid = count_processes("chrome.exe")
-            if mid > before_chrome:
-                log("Chrome → ChatGPT: success.")
-            else:
-                log("Chrome → ChatGPT: attempted (no new chrome process detected).")
-
-            subprocess.Popen([
-                self.chrome_path,
-                f'--profile-directory={profile}',
-                '--disable-background-mode',
-                "https://www.notion.so/SECOND-BRAIN-28486dda46e280729db4c98997785ffa"
-            ], creationflags=CREATE_NO_WINDOW)
-
-            time.sleep(0.7)
-            end = count_processes("chrome.exe")
-            if end > mid:
-                log("Chrome → Notion: success.")
-            else:
-                log("Chrome → Notion: attempted (no new chrome process detected).")
-
-        except Exception as e:
-            log(f"ERROR launching Chrome/Notion: {e}")
-
-        # small settle time to avoid immediate re-triggers
-        time.sleep(0.5)
-        # clear clap buffer after doing the action
-        self.clap_times.clear()
-
-    # ------------------- Main Loop -------------------
     def run(self):
-        # small startup delay so audio devices can appear after logon
         time.sleep(2)
-
-        # ensure audio stream open (keeps trying without exiting the whole script)
         if not self.start_audio_stream(retries=6, retry_delay=2.0):
-            log("Unable to open audio on startup; will keep retrying in run loop.")
+            log("No audio on startup.")
 
-        # main persistent loop
+        self.update_status("Idle")
+
         while self.running:
-            # if audio stream is not open, attempt to open it periodically
             if not self.audio_stream:
-                opened = self.start_audio_stream(retries=2, retry_delay=2.0)
-                if not opened:
+                self.update_status("Error: No Audio")
+                if self.start_audio_stream(retries=1):
+                    self.update_status("Idle")
+                else:
                     time.sleep(3)
-                    continue  # try again later
+                    continue
 
-            # if paused from tray, sleep and continue
             if self.paused:
+                self.update_status("Paused")
                 time.sleep(0.5)
                 continue
 
             try:
                 data, overflow = self.audio_stream.read(self.frame_length)
-                if overflow:
-                    log("Audio overflow detected.")
-
                 pcm = data[:, 0].astype(np.int16).tolist()
 
-                # If not active, watch for wake word continuously
                 if not self.is_active:
                     if self.detect_wake_word(pcm):
-                        self.activate()
-                        # now will enter clap-listening state
-                        continue
-                    else:
-                        # idle; continue listening for wake word
-                        continue
+                        if getattr(self, 'mode', 'clap') == "keyword":
+                            self.update_status("Triggered!", wake=True)
+                            self.launch_all_apps()
+                        else:
+                            self.activate()
+                    continue
 
-                # If active, watch for claps until active_duration elapses
                 if self.is_active:
                     clap = self.detect_clap(pcm)
                     if clap == 2:
-                        # double clap — launch apps and immediately return to idle
                         self.launch_all_apps()
                         self.deactivate()
                         continue
 
-                    # if the clap window timed out, deactivate and continue listening
                     if time.time() - self.activation_time > self.active_duration:
                         self.deactivate()
-                        continue
-
             except Exception as e:
-                log(f"Main loop error: {e}")
-                time.sleep(0.5)
-                # if audio read repeatedly fails, restart audio stream later
-                try:
-                    self.stop_audio_stream()
-                except Exception:
-                    pass
+                log(f"Loop error: {e}")
                 time.sleep(1)
 
-        # cleanup on exit
         self.cleanup()
 
     def cleanup(self):
         log("Shutting down.")
-        try:
-            if self.audio_stream:
-                self.audio_stream.stop()
-                self.audio_stream.close()
-        except Exception:
-            pass
-        try:
-            if self.porcupine:
+        self.stop_audio_stream()
+        if hasattr(self, 'porcupine') and self.porcupine:
+            try:
                 self.porcupine.delete()
-        except Exception:
-            pass
-        log("Cleanup complete.")
-
+            except:
+                pass
 
 # ------------------- Tray Manager -------------------
 class TrayManager:
@@ -517,124 +478,87 @@ class TrayManager:
 
         def load_icon(path):
             try:
-                img = Image.open(path)
-                img = img.resize((16, 16), Image.LANCZOS)
+                img = Image.open(path).resize((16, 16), Image.LANCZOS)
                 return img
             except Exception as e:
-                log(f"Tray icon load error: {e}")
                 return Image.new("RGBA", (16, 16), (255, 0, 0, 255))
 
-        # load images (auto resized)
-        self.img_listening = load_icon(ICON_LISTEN)
-        self.img_active = load_icon(ICON_ACTIVE)
-        self.img_error = load_icon(ICON_ERROR)
-
-        # so launcher can call icon changes
+        self.icon_image = load_icon(os.path.join(ICONS_DIR, "listening.ico"))
         self.launcher.tray_icon = self
-
-    def set_listening_icon(self):
-        if self.icon:
-            self.icon.icon = self.img_listening
-
-    def set_active_icon(self):
-        if self.icon:
-            self.icon.icon = self.img_active
-
-    def set_error_icon(self):
-        if self.icon:
-            self.icon.icon = self.img_error
 
     def toggle_pause(self, icon, item):
         self.launcher.paused = not self.launcher.paused
-        state = "paused" if self.launcher.paused else "resumed"
-        log(f"User toggled listening: {state}")
-
         if self.launcher.paused:
-            self.set_error_icon()
             play_sound(SOUND_ERROR)
         else:
-            self.set_listening_icon()
             play_sound(SOUND_WAKE)
 
     def restart_audio(self, icon, item):
-        log("User requested audio restart from tray.")
         threading.Thread(target=self.launcher.restart_audio, daemon=True).start()
 
     def open_logs(self, icon, item):
-        try:
-            if os.path.exists(LOG_PATH):
-                os.startfile(LOG_PATH)
-            else:
-                os.startfile(BASE_DIR)
-        except Exception as e:
-            log(f"Failed to open logs: {e}")
+        if os.path.exists(LOG_PATH):
+            os.startfile(LOG_PATH)
+
+    def show_dashboard(self, icon, item):
+        if self.launcher.dashboard:
+            QMetaObject.invokeMethod(
+                self.launcher.dashboard,
+                "show_window",
+                Qt.QueuedConnection
+            )
+
+    def restart_app(self, icon, item):
+        log("Restarting Jarvis app...")
+        if self.icon:
+            self.icon.stop()
+        os.execl(sys.executable, sys.executable, *sys.argv)
 
     def exit_app(self, icon, item):
-        log("User requested exit from tray.")
-        self.launcher.running = False
-        try:
-            self.icon.stop()
-        except:
-            pass
+        log("Stopping Jarvis app...")
+        self.launcher.running = False           # stop audio loop
+        if self.icon:
+            self.icon.stop()                    # stop tray loop
+
+        QMetaObject.invokeMethod(
+            QApplication.instance(),
+            "quit",
+            Qt.QueuedConnection
+        )                                        # stop Qt loop safely
+
+        sys.exit(0)                              # terminate process
 
     def make_menu(self):
         return pystray.Menu(
-            pystray.MenuItem(
-                lambda icon: "Pause Listening" if not self.launcher.paused else "Resume Listening",
-                self.toggle_pause
-            ),
+            pystray.MenuItem("Settings", self.show_dashboard, default=True),
+            pystray.MenuItem(lambda i: "Resume" if self.launcher.paused else "Pause", self.toggle_pause),
             pystray.MenuItem("Restart Audio", self.restart_audio),
             pystray.MenuItem("Open Logs", self.open_logs),
-            pystray.MenuItem("Exit", self.exit_app)
+            pystray.MenuItem("Restart Jarvis", self.restart_app),
+            pystray.MenuItem("Stop Jarvis", self.exit_app)
         )
 
     def run(self):
-        self.icon = pystray.Icon("Jarvis", self.img_listening, "Jarvis Assistant", menu=self.make_menu())
-        try:
-            self.icon.run()
-        except Exception as e:
-            log(f"Tray icon run error: {e}")
+        self.icon = pystray.Icon("Jarvis", self.icon_image, "Jarvis", menu=self.make_menu())
+        self.icon.run()
 
-
-# ------------------- Main -------------------
 def main():
-    # single-instance check
+    global _launcher_ref
     sock = acquire_singleton_socket(SINGLETON_PORT)
-    if sock is None:
-        # another instance is running — log and exit
-        log("Another instance detected — exiting.")
-        return
+    if not sock: return
+
+    qt_app = QApplication(sys.argv)
+    qt_app.setQuitOnLastWindowClosed(False)
 
     launcher = UnifiedLauncher()
+    _launcher_ref = launcher
+    launcher.dashboard = DashboardWindow(launcher_callback=launcher)
     tray = TrayManager(launcher)
 
-    # run tray in background thread (so launcher.run can be main thread)
-    t = threading.Thread(target=tray.run, daemon=True)
-    t.start()
+    threading.Thread(target=tray.run, daemon=True).start()
+    threading.Thread(target=launcher.run, daemon=True).start()
 
-    # small delay so tray initializes visually
-    time.sleep(0.5)
-    # set initial icon state
-    tray.set_listening_icon()
-
-    # run the audio engine on this thread (keeps process alive)
-    try:
-        launcher.run()
-    except Exception as e:
-        log(f"Launcher top-level error: {e}")
-    finally:
-        # ensure icon removed on exit
-        try:
-            if tray.icon:
-                tray.icon.stop()
-        except Exception:
-            pass
-        # close the singleton socket on exit
-        try:
-            sock.close()
-        except Exception:
-            pass
-
+    sys.exit(qt_app.exec())
 
 if __name__ == "__main__":
     main()

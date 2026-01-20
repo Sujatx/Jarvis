@@ -6,35 +6,31 @@ This project is a Windows desktop automation assistant named "Jarvis," inspired 
 
 The core functionality involves:
 1.  **Wake-Word Detection:** It uses the `pvporcupine` engine to listen for the "jarvis" wake word.
-2.  **Clap Trigger:** After the wake word is detected, it listens for a distinct double-clap pattern.
-3.  **Action Execution:** Upon detecting a double-clap, it launches a predefined set of applications: Visual Studio Code, ChatGPT in a new Chrome window, and a specific Notion page.
+2.  **Clap Trigger:** After the wake word is detected, it listens for a distinct double-clap pattern (or immediate keyword trigger).
+3.  **Action Execution:** Upon detection, it launches a dynamic set of applications and URLs configured via the dashboard.
 
-The application is built in Python and uses `sounddevice` and `numpy` for audio processing and `pystray` for the system tray interface. It is designed to be a single-instance application and includes audio feedback for different states (wake, clap, error).
+The application is built in Python and uses `sounddevice` and `numpy` for audio processing, `pystray` for the system tray interface, and `PySide6` for the control dashboard.
 
 **Current Status (Jan 2026):**
 The application has been successfully packaged into a standalone Windows executable (`dist/Jarvis.exe`).
-- **Packaging:** Completed. The executable works with the custom icon and no console flashes.
-- **Environment:** Correctly loads configuration from a `.env` file in the application root.
-- **Stability:** Dynamic libraries for `pvporcupine` are explicitly bundled.
+- **Packaging:** Completed using PyInstaller with a custom spec file for PIL and Porcupine resources.
+- **UI:** A modern PySide6 dashboard allows for real-time app management and system configuration.
+- **Configuration:** Dynamic loading from `apps.json`, `urls.json`, and `config.json`.
 
 ## Unified Development Roadmap
 
 ### Phase 1: Core System & Packaging (STATUS: COMPLETE)
 *   **1.1 Core Logic:** Persistent background service, Wake-word (Porcupine), Clap detection, Auto-launch apps. (Done)
-*   **1.2 Code Preparation:** Resource path handling (`_MEIPASS`), separation of UI/Tray from core logic, removal of console prints. (Done)
-*   **1.3 Packaging:** Build standalone `.exe` with PyInstaller, including `python-dotenv` for config, custom icons, and proper metadata. (Done)
+*   **1.2 Code Preparation:** Resource path handling (`_MEIPASS`), separation of UI/Tray from core logic. (Done)
+*   **1.3 Packaging:** Build standalone `.exe` with PyInstaller. (Done)
 
-### Phase 2: User Interface Layer (STATUS: PLANNED)
-*   **2.1 Modern Control Dashboard (PySide6):**
-    *   **Window:** Standard fixed-size (~900×600), opened from Tray -> "Settings". Closing does NOT exit Jarvis.
-    *   **Status Panel (Read-only):** Live status (Idle/Listening/Triggered), last wake-event, last action-event.
-    *   **App Launch Manager:**
-        *   **Installed Apps List:** Icons + Names + Toggle. Sourced from Registry/Start Menu. Toggles update `apps.json` immediately.
-        *   **Browser Sub-Section:** For Chrome/Edge/Firefox, when toggled ON, allows management of a URL list ("Open these links"). Updates `urls.json`.
-    *   **Wake-Word Settings:** Textbox for wake-word. Saves to `config.json`. Marks "restart required".
-    *   **Execution Mode:** Toggle between "Clap" and "Keyword". Saves to `config.json`. Marks "restart required".
-    *   **Restart Jarvis Button:** Visible only when "restart required" is true. Closes listener/tray and relaunches `Jarvis.exe`.
-*   **2.2 Mini Overlay HUD:** Implement a transparent, frameless floating HUD for visual feedback.
+### Phase 2: User Interface Layer (STATUS: COMPLETE)
+*   **2.1 Modern Control Dashboard (PySide6):** 
+    *   **Status Panel:** Real-time monitoring of Jarvis state and events. (Done)
+    *   **App Launch Manager:** Start-Menu based app scanner with path-based launching. (Done)
+    *   **Browser Management:** Dynamic URL list for Chrome/Edge/Firefox. (Done)
+    *   **Configuration:** On-the-fly updates for wake-word and execution mode (Clap vs Keyword). (Done)
+    *   **Process Management:** Tray-based restart and full shutdown. (Done)
 
 ### Phase 3: Voice Interaction Upgrade (STATUS: PLANNED)
 *   **3.1 Text-to-Speech (TTS):** Allow Jarvis to speak back.
@@ -64,9 +60,9 @@ The application has been successfully packaged into a standalone Windows executa
 
 ## Development Conventions
 
-*   **Entry Point:** `jarvis.py` (contains `UnifiedLauncher` and `TrayManager`).
+*   **Entry Point:** `jarvis.py` (orchestrates `UnifiedLauncher`, `TrayManager`, and `DashboardWindow`).
 *   **Resources:** Use `resource_path()` for all assets (icons, sounds).
-*   **Logging:** Logs to `service.log` in the application root.
+*   **Logging:** Logs to `service.log` with real-time error reporting to the dashboard.
 *   **Configuration:** 
     - Secrets: `.env`
     - App preferences: `apps.json`, `urls.json`

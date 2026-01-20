@@ -10,15 +10,15 @@ Well, here I am building my own **Jarvis** from scratch, leveraging everything I
 
 ## System Overview
 
-Jarvis is a persistent background assistant for Windows that automates your workspace initialization through a unique two-stage trigger system. It minimizes distraction by living entirely in the system tray and provides clear audio/visual feedback for every state.
+Jarvis is a persistent background assistant for Windows that automates your workspace initialization through a unique two-stage trigger system. It minimizes distraction by living entirely in the system tray and provides a modern dashboard for complete control.
 
 ### Key Features:
-*   **Two-Stage Activation:** Combines offline wake-word detection ("Jarvis") with precision double-clap recognition to prevent accidental triggers.
-*   **Packaged Executable:** Runs as a standalone `.exe` with zero console flashes, no Python installation required for the end-user.
-*   **System Tray Management:** Full control via a tray icon (Pause, Resume, Restart Audio, View Logs).
-*   **Workspace Automation:** Automatically launches VS Code and Chrome (ChatGPT & Notion) with a single command.
-*   **Resilient Audio Engine:** Auto-recovers from audio device disconnections or overflows.
-*   **Privacy-First:** Uses local wake-word detection; no audio is uploaded to the cloud for triggering.
+*   **Modern Control Dashboard:** A PySide6-based UI to manage your apps, URLs, and system settings in real-time.
+*   **Two-Stage Activation:** Combines offline wake-word detection ("Jarvis") with precision double-clap recognition. Supports Keyword-only mode for instant activation.
+*   **Dynamic App Manager:** Scans your Start Menu for installed applications. Toggle which apps launch with a single click.
+*   **Browser Integration:** Configure a custom list of URLs to open automatically in your preferred browser.
+*   **Packaged Executable:** Runs as a standalone `.exe` with zero console flashes.
+*   **Privacy-First:** Uses local wake-word detection via Porcupine; no audio is uploaded to the cloud.
 
 ---
 
@@ -55,34 +55,23 @@ python jarvis.py
 
 **To build the executable:**
 ```bash
-python -m PyInstaller jarvis.spec
+python -m PyInstaller --clean --noconfirm jarvis.spec
 ```
 
 ---
 
 ## Usage
 
-1.  **Wake Up:** Say **"Jarvis"**. You will hear a confirmation sound, and the tray icon will turn blue.
-2.  **Command:** Perform a **double-clap** within 5 seconds.
-3.  **Result:** Jarvis will play a success sound and launch your predefined workspace:
-    *   **VS Code**
-    *   **Chrome** -> ChatGPT
-    *   **Chrome** -> Notion (Second Brain)
-
-### Customizing Apps
-To change which applications are launched, modify the `launch_all_apps` function in `jarvis.py`.
-
-```python
-def launch_all_apps(self):
-    # ... code ...
-    
-    # Example: Launch Spotify
-    subprocess.Popen(["C:\\Users\\YourUser\\AppData\\Roaming\\Spotify\\Spotify.exe"], creationflags=CREATE_NO_WINDOW)
-    
-    # Example: Open a website
-    webbrowser.open("https://youtube.com")
-```
-After modifying the script, rebuild the executable if you are using the packaged version.
+1.  **Launch:** Run `Jarvis.exe`. It will appear in your system tray.
+2.  **Configure:** Right-click the tray icon and select **Settings** to open the Dashboard.
+    *   **App Manager:** Toggle apps you want to launch.
+    *   **URLs:** Add links you want your browser to open.
+    *   **Settings:** Change your wake-word or switch between **Clap** and **Keyword** modes.
+3.  **Trigger:**
+    *   Say **"Jarvis"** (or your custom wake-word).
+    *   If in **Clap Mode**: Double-clap within 5 seconds.
+    *   If in **Keyword Mode**: Jarvis triggers immediately after the wake-word.
+4.  **Result:** Jarvis plays a sound and launches your configured workspace.
 
 ---
 
@@ -90,12 +79,16 @@ After modifying the script, rebuild the executable if you are using the packaged
 
 ```text
 Jarvis/
-├── jarvis.py             # Main application logic
+├── jarvis.py             # Main background service & tray logic
+├── dashboard.py          # PySide6 Control Dashboard UI
 ├── jarvis.spec           # PyInstaller build configuration
+├── apps.json             # Configured applications to launch
+├── urls.json             # Configured URLs to open
+├── config.json           # System settings (wake-word, mode)
 ├── requirements.txt      # Python dependencies
-├── service.log           # Runtime activity logs
-├── .env                  # Configuration (Access Keys)
-├── icons/                # System tray & app icons
+├── service.log           # Runtime activity & error logs
+├── .env                  # Secrets (Access Keys)
+├── icons/                # System tray icon (listening.ico)
 └── sounds/               # Audio feedback files (WAV)
 ```
 
