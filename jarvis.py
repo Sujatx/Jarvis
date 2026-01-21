@@ -11,7 +11,7 @@ import shutil
 import threading
 import webbrowser
 import socket
-import json
+import config_manager
 
 # Dashboard UI
 from dashboard import DashboardWindow
@@ -215,43 +215,42 @@ class UnifiedLauncher:
         # external tray icon reference (set by TrayManager)
         self.tray_icon = None
         self.dashboard = None
+        self.migrate_configs()
         self.load_dynamic_config()
+
+    def migrate_configs(self):
+        # Migration for urls.json
+        urls_path = os.path.join(APP_ROOT, "urls.json")
+        if os.path.exists(urls_path):
+            urls_data = config_manager.load_json(urls_path)
+            if isinstance(urls_data, list):
+                # Migrate flat list
+                urls_data = {"google chrome": urls_data, "microsoft edge": [], "firefox": []}
+                config_manager.save_json(urls_path, urls_data)
+            elif "browser_urls" in urls_data:
+                # Migrate old dict format
+                urls_data = {"google chrome": urls_data["browser_urls"], "microsoft edge": [], "firefox": []}
+                config_manager.save_json(urls_path, urls_data)
 
     def load_dynamic_config(self):
         # System settings
         config_path = os.path.join(APP_ROOT, "config.json")
-        if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                try:
-                    cfg = json.load(f)
-                    self.wake_word = cfg.get("wake_word", "jarvis").lower()
-                    self.mode = cfg.get("mode", "clap")
-                except:
-                    self.mode = "clap"
-        else:
-            self.mode = "clap"
+        cfg = config_manager.load_json(config_path)
+        self.wake_word = cfg.get("wake_word", "jarvis").lower()
+        self.mode = cfg.get("mode", "clap")
 
         # Apps to launch
         apps_path = os.path.join(APP_ROOT, "apps.json")
-        if os.path.exists(apps_path):
-            with open(apps_path, 'r', encoding='utf-8') as f:
-                try:
-                    self.apps_to_launch = json.load(f)
-                except:
-                    self.apps_to_launch = {}
-        else:
-            self.apps_to_launch = {}
+        self.apps_to_launch = config_manager.load_json(apps_path)
 
         # URLs to open
         urls_path = os.path.join(APP_ROOT, "urls.json")
-        if os.path.exists(urls_path):
-            with open(urls_path, 'r', encoding='utf-8') as f:
-                try:
-                    self.urls_to_open = json.load(f).get("browser_urls", [])
-                except:
-                    self.urls_to_open = []
-        else:
-            self.urls_to_open = []
+        urls_data = config_manager.load_json(urls_path)
+        
+        self.urls_to_open = []
+        for browser, urls in urls_data.items():
+            if isinstance(urls, list):
+                self.urls_to_open.extend(urls)
 
     def update_status(self, status, wake=False, action=False):
         if self.dashboard:

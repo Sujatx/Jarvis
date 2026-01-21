@@ -14,31 +14,58 @@ The application is built in Python and uses `sounddevice` and `numpy` for audio 
 **Current Status (Jan 2026):**
 The application has been successfully packaged into a standalone Windows executable (`dist/Jarvis.exe`).
 - **Packaging:** Completed using PyInstaller with a custom spec file for PIL and Porcupine resources.
-- **UI:** A modern PySide6 dashboard allows for real-time app management and system configuration.
-- **Configuration:** Dynamic loading from `apps.json`, `urls.json`, and `config.json`.
+- **UI:** A modern, translucent PySide6 dashboard with Windows 11 Mica/Acrylic effects, per-app URL management, and real-time event logging.
+- **Configuration:** Atomic persistence layer implemented via `config_manager.py`.
 
 ## Unified Development Roadmap
 
-### Phase 1: Core System & Packaging (STATUS: COMPLETE)
-*   **1.1 Core Logic:** Persistent background service, Wake-word (Porcupine), Clap detection, Auto-launch apps. (Done)
-*   **1.2 Code Preparation:** Resource path handling (`_MEIPASS`), separation of UI/Tray from core logic. (Done)
-*   **1.3 Packaging:** Build standalone `.exe` with PyInstaller. (Done)
+### Phase 1: JARVIS DASHBOARD — FINAL MODERN UI PLAN (STATUS: COMPLETE)
+1. **Window-Level Modernization** (Done)
+   - Applied Windows 11 Mica/Acrylic via DWM API.
+   - Fallback: semi-transparent dark background.
+   - Rounded corners enabled for entire window.
+   - Font: Segoe UI Variable globally.
 
-### Phase 2: User Interface Layer (STATUS: COMPLETE)
-*   **2.1 Modern Control Dashboard (PySide6):** 
-    *   **Status Panel:** Real-time monitoring of Jarvis state and events. (Done)
-    *   **App Launch Manager:** Start-Menu based app scanner with path-based launching. (Done)
-    *   **Browser Management:** Dynamic URL list for Chrome/Edge/Firefox. (Done)
-    *   **Configuration:** On-the-fly updates for wake-word and execution mode (Clap vs Keyword). (Done)
-    *   **Process Management:** Tray-based restart and full shutdown. (Done)
+2. **Global Theme** (Done)
+   - Sidebar: #1b1b1b
+   - Main background: #202020 (opaque/semi-transparent hybrid)
+   - Accent: #00e5ff
+   - Smooth hover transitions.
 
-### Phase 3: Voice Interaction Upgrade (STATUS: PLANNED)
-*   **3.1 Text-to-Speech (TTS):** Allow Jarvis to speak back.
-*   **3.2 Voice Commands:** Replace/augment claps with spoken commands.
+3. **App Manager** (Done)
+   - Split into "Enabled Apps" and "Available Apps" sections.
+   - Toggling moves apps between sections.
+   - Modern card layout.
 
-### Phase 4: Automation & AI (STATUS: PLANNED)
-*   **4.1 Advanced Automation:** Execute complex tasks beyond app launching.
-*   **4.2 AI Brain:** Integrate LLMs for natural language understanding and context memory.
+4. **Browser URL Management** (Done)
+   - Per-app collapsible URL sections for Chrome, Edge, and Firefox.
+   - Integrated directly into the app cards.
+   - Fully persistent via `config_manager`.
+
+5. **Settings Page Enhancements** (Done)
+   - Card-style sections for Wake Word, Mode, and Restart.
+   - Modern input styling.
+
+6. **Status Page Enhancements** (Done)
+   - Real-time "Event Log" panel with timestamps.
+   - Displays last ~20 system events.
+
+7. **Scroll Behavior** (Done)
+   - Kinetic/momentum scrolling enabled (`QScroller`).
+
+8. **Persistence** (Done)
+   - All settings saved via `config_manager.py` with atomic writes.
+
+9. **Implementation Sequence** (Done)
+   - All steps completed, tested, and packaged.
+
+### Phase 2: Voice Interaction Upgrade (STATUS: PLANNED)
+*   **2.1 Text-to-Speech (TTS):** Allow Jarvis to speak back.
+*   **2.2 Voice Commands:** Replace/augment claps with spoken commands.
+
+### Phase 3: Automation & AI (STATUS: PLANNED)
+*   **3.1 Advanced Automation:** Execute complex tasks beyond app launching.
+*   **3.2 AI Brain:** Integrate LLMs for natural language understanding and context memory.
 
 ## Building and Running
 

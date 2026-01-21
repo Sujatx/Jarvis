@@ -13,10 +13,11 @@ Well, here I am building my own **Jarvis** from scratch, leveraging everything I
 Jarvis is a persistent background assistant for Windows that automates your workspace initialization through a unique two-stage trigger system. It minimizes distraction by living entirely in the system tray and provides a modern dashboard for complete control.
 
 ### Key Features:
-*   **Modern Control Dashboard:** A PySide6-based UI to manage your apps, URLs, and system settings in real-time.
+*   **Modern Control Dashboard:** A PySide6-based UI featuring Windows 11 Mica effects, dark mode, and smooth transitions.
 *   **Two-Stage Activation:** Combines offline wake-word detection ("Jarvis") with precision double-clap recognition. Supports Keyword-only mode for instant activation.
-*   **Dynamic App Manager:** Scans your Start Menu for installed applications. Toggle which apps launch with a single click.
-*   **Browser Integration:** Configure a custom list of URLs to open automatically in your preferred browser.
+*   **Dynamic App Manager:** Scans your Start Menu for installed applications. Apps are split into "Enabled" and "Available" lists for easy management.
+*   **Browser Integration:** Configure custom URL lists for Chrome, Edge, or Firefox directly within the app cards.
+*   **Real-Time Status:** Includes an Event Log on the Status page to monitor system activity and errors.
 *   **Packaged Executable:** Runs as a standalone `.exe` with zero console flashes.
 *   **Privacy-First:** Uses local wake-word detection via Porcupine; no audio is uploaded to the cloud.
 
@@ -64,8 +65,7 @@ python -m PyInstaller --clean --noconfirm jarvis.spec
 
 1.  **Launch:** Run `Jarvis.exe`. It will appear in your system tray.
 2.  **Configure:** Right-click the tray icon and select **Settings** to open the Dashboard.
-    *   **App Manager:** Toggle apps you want to launch.
-    *   **URLs:** Add links you want your browser to open.
+    *   **App Manager:** Toggle apps you want to launch. Use the arrow on browser cards to manage URLs.
     *   **Settings:** Change your wake-word or switch between **Clap** and **Keyword** modes.
 3.  **Trigger:**
     *   Say **"Jarvis"** (or your custom wake-word).
@@ -81,6 +81,7 @@ python -m PyInstaller --clean --noconfirm jarvis.spec
 Jarvis/
 ├── jarvis.py             # Main background service & tray logic
 ├── dashboard.py          # PySide6 Control Dashboard UI
+├── config_manager.py     # Atomic configuration persistence
 ├── jarvis.spec           # PyInstaller build configuration
 ├── apps.json             # Configured applications to launch
 ├── urls.json             # Configured URLs to open
