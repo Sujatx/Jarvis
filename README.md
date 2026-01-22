@@ -27,12 +27,27 @@ Jarvis is a persistent background assistant for Windows that automates your work
 
 *   **OS:** Windows 10 or 11
 *   **Hardware:** Functional Microphone
-*   **Software (for Developers):** Python 3.10+ (Tested on 3.13)
+*   **Software (for Developers):** Python 3.10+
 *   **Configuration:** [Porcupine Access Key](https://picovoice.ai/console/) (Free tier available)
 
 ---
 
-## Installation & Setup
+## Quick Start (New Machine)
+
+**One-command setup:**
+```powershell
+.\bootstrap.ps1
+```
+This script will:
+1.  Check for Python 3.10+.
+2.  Create a local virtual environment (`.venv`).
+3.  Install dependencies.
+4.  Generate default config files (`.env`, `apps.json`, etc.).
+5.  Optionally build the standalone EXE.
+
+---
+
+## Manual Installation & Setup
 
 ### 1. Clone the Repository
 ```bash
@@ -40,23 +55,27 @@ git clone https://github.com/Sujatx/Jarvis.git
 cd Jarvis
 ```
 
-### 2. Configure Environment
-Create a `.env` file in the project root:
+### 2. Install Dependencies
+```bash
+python setup.py
+```
+*This will install requirements and create necessary config files.*
+
+### 3. Configure
+Open the `.env` file and paste your Porcupine Access Key:
 ```env
 PORCUPINE_ACCESS_KEY=your_access_key_here
-CHROME_PROFILE=Profile 1
 ```
 
-### 3. Run or Build
+### 4. Run or Build
 **To run from source:**
 ```bash
-pip install -r requirements.txt
-python jarvis.py
+.\.venv\Scripts\python jarvis.py
 ```
 
 **To build the executable:**
 ```bash
-python -m PyInstaller --clean --noconfirm jarvis.spec
+python build.py
 ```
 
 ---
@@ -79,6 +98,9 @@ python -m PyInstaller --clean --noconfirm jarvis.spec
 
 ```text
 Jarvis/
+├── bootstrap.ps1         # One-click setup script
+├── setup.py              # Dependency & config installer
+├── build.py              # PyInstaller build wrapper
 ├── jarvis.py             # Main background service & tray logic
 ├── dashboard.py          # PySide6 Control Dashboard UI
 ├── config_manager.py     # Atomic configuration persistence

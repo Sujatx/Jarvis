@@ -16,6 +16,7 @@ The application has been successfully packaged into a standalone Windows executa
 - **Packaging:** Completed using PyInstaller with a custom spec file for PIL and Porcupine resources.
 - **UI:** A modern, translucent PySide6 dashboard with Windows 11 Mica/Acrylic effects, per-app URL management, and real-time event logging.
 - **Configuration:** Atomic persistence layer implemented via `config_manager.py`.
+- **Installation:** Automated via `bootstrap.ps1`, `setup.py`, and `build.py` for one-command setup.
 
 ## Unified Development Roadmap
 
@@ -69,20 +70,18 @@ The application has been successfully packaged into a standalone Windows executa
 
 ## Building and Running
 
-1.  **Install Dependencies:**
-    ```bash
-    pip install -r requirements.txt
+1.  **One-Command Setup:**
+    ```powershell
+    .\bootstrap.ps1
     ```
 
-2.  **Environment Configuration:**
-    Create a `.env` file in the root directory:
-    ```
-    PORCUPINE_ACCESS_KEY=your_key_here
-    CHROME_PROFILE=Profile 1
+2.  **Manual Setup:**
+    ```bash
+    python setup.py
     ```
 
 3.  **Run the Application:**
-    - **Script:** `python jarvis.py`
+    - **Script:** `.\.venv\Scripts\python jarvis.py`
     - **Executable:** Run `dist/Jarvis.exe`
 
 ## Development Conventions
