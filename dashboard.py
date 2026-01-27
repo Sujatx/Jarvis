@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+import threading
 import win32com.client
 import config_manager
 import ctypes
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QCheckBox, QScrollArea, QFrame, QStackedWidget,
                              QListWidget, QListWidgetItem, QToolButton, QScroller,
                              QSizePolicy, QAbstractScrollArea)
-from PySide6.QtCore import Qt, Signal, QTimer, Slot
+from PySide6.QtCore import Qt, Signal, QTimer, Slot, QMetaObject
 from PySide6.QtGui import QFont, QColor, QPalette
 
 class AppScanner:
@@ -262,6 +263,42 @@ class DashboardWindow(QMainWindow):
         wake_vbox.addWidget(self.txt_wake_word)
         settings_layout.addWidget(wake_card)
         
+        # Voice Engine Card
+        engine_card = QFrame()
+        engine_card.setObjectName("settings_card")
+        engine_vbox = QVBoxLayout(engine_card)
+        engine_vbox.addWidget(QLabel("<h3>Voice Engine</h3>"))
+        engine_vbox.addWidget(QLabel("Porcupine Access Key (from picovoice.ai)"))
+        
+        key_input_layout = QHBoxLayout()
+        self.txt_access_key = QLineEdit()
+        self.txt_access_key.setEchoMode(QLineEdit.Password)
+        self.txt_access_key.setPlaceholderText("Enter Access Key...")
+        # Initial value from .env
+        env_path = os.path.join(APP_ROOT, ".env")
+        self.txt_access_key.setText(config_manager.get_env_value(env_path, "PORCUPINE_ACCESS_KEY"))
+        
+        self.btn_toggle_key = QPushButton("Show")
+        self.btn_toggle_key.setFixedWidth(80)
+        self.btn_toggle_key.setStyleSheet("""
+            QPushButton {
+                background-color: #444; 
+                color: white;
+                padding: 8px 5px;
+            }
+            QPushButton:hover {
+                background-color: #555;
+            }
+        """)
+        
+        key_input_layout.addWidget(self.txt_access_key)
+        key_input_layout.addWidget(self.btn_toggle_key)
+        engine_vbox.addLayout(key_input_layout)
+        
+        self.btn_save_key = QPushButton("Verify & Save Key")
+        engine_vbox.addWidget(self.btn_save_key)
+        settings_layout.addWidget(engine_card)
+        
         # Mode Card
         mode_card = QFrame()
         mode_card.setObjectName("settings_card")
@@ -312,7 +349,66 @@ class DashboardWindow(QMainWindow):
         self.chk_mode.stateChanged.connect(self.on_setting_changed)
         self.btn_restart.clicked.connect(self.restart_jarvis)
         
+        self.btn_toggle_key.clicked.connect(self.toggle_access_key_visibility)
+        self.btn_save_key.clicked.connect(self.save_access_key)
+        
         self.switch_page(0)
+        
+        # First-run check: if no access key, highlight settings
+        QTimer.singleShot(500, self.check_first_run)
+
+    def check_first_run(self):
+        env_path = os.path.join(APP_ROOT, ".env")
+        key = config_manager.get_env_value(env_path, "PORCUPINE_ACCESS_KEY")
+        if not key:
+            self.add_log_entry("NOTICE: No Access Key found. Opening Settings.")
+            self.switch_page(2)
+            self.txt_access_key.setFocus()
+
+    def toggle_access_key_visibility(self):
+        if self.txt_access_key.echoMode() == QLineEdit.Password:
+            self.txt_access_key.setEchoMode(QLineEdit.Normal)
+            self.btn_toggle_key.setText("Hide")
+        else:
+            self.txt_access_key.setEchoMode(QLineEdit.Password)
+            self.btn_toggle_key.setText("Show")
+
+    def save_access_key(self):
+        key = self.txt_access_key.text().strip()
+        if not key:
+            self.add_log_entry("ERROR: Please enter an access key.")
+            return
+            
+        self.btn_save_key.setEnabled(False)
+        self.btn_save_key.setText("Verifying...")
+        self.add_log_entry("Verifying access key...")
+        
+        # Run validation in a thread to keep UI responsive
+        def run_validation():
+            if self.launcher_callback:
+                # We need to reach the launcher object. 
+                # In main(), window = DashboardWindow(launcher_callback=launcher)
+                success, message = self.launcher_callback.validate_and_update_key(key)
+                
+                # UI update must happen in main thread
+                QMetaObject.invokeMethod(self, "on_validation_result", 
+                                       Qt.QueuedConnection,
+                                       Qt.Argument("bool", success),
+                                       Qt.Argument("QString", message))
+            else:
+                self.btn_save_key.setEnabled(True)
+                self.btn_save_key.setText("Verify & Save Key")
+
+        threading.Thread(target=run_validation, daemon=True).start()
+
+    @Slot(bool, str)
+    def on_validation_result(self, success, message):
+        self.btn_save_key.setEnabled(True)
+        self.btn_save_key.setText("Verify & Save Key")
+        if success:
+            self.add_log_entry(f"SUCCESS: {message}")
+        else:
+            self.add_log_entry(f"ERROR: {message}")
 
     def switch_page(self, index):
         self.pages.setCurrentIndex(index)

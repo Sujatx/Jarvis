@@ -20,7 +20,7 @@ VSVersionInfo(
         StringStruct(u'FileVersion', u'1.0.0.0'),
         StringStruct(u'InternalName', u'Jarvis'),
         StringStruct(u'LegalCopyright', u'Copyright © 2026 Sujatx'),
-        StringStruct(u'OriginalFilename', u'clap_launcher.exe'),
+        StringStruct(u'OriginalFilename', u'Jarvis.exe'),
         StringStruct(u'ProductName', u'Jarvis'),
         StringStruct(u'ProductVersion', u'1.0.0.0')])
       ]),

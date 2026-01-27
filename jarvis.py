@@ -191,18 +191,22 @@ class UnifiedLauncher:
         if self.wake_word not in builtin_keywords:
             self.wake_word = "jarvis"
 
+        self.porcupine = None
         try:
-            self.porcupine = pvporcupine.create(
-                access_key=self.access_key,
-                keywords=[self.wake_word]
-            )
-            log(f"Wake word '{self.wake_word}' loaded.")
+            if self.access_key:
+                self.porcupine = pvporcupine.create(
+                    access_key=self.access_key,
+                    keywords=[self.wake_word]
+                )
+                log(f"Wake word '{self.wake_word}' loaded.")
+            else:
+                log("No Porcupine Access Key found. Wake-word detection disabled.")
         except Exception as e:
-            log(f"ERROR initializing Porcupine: {e}")
-            sys.exit(1)
+            log(f"Porcupine Init Failed: {e}")
 
-        self.sample_rate = self.porcupine.sample_rate
-        self.frame_length = self.porcupine.frame_length
+        # Default values if porcupine fails
+        self.sample_rate = self.porcupine.sample_rate if self.porcupine else 16000
+        self.frame_length = self.porcupine.frame_length if self.porcupine else 512
 
         self.audio_stream = None
         signal.signal(signal.SIGTERM, self.handle_exit)
@@ -312,10 +316,41 @@ class UnifiedLauncher:
             log("Audio restart failed.")
 
     def detect_wake_word(self, pcm):
-        try:
-            return self.porcupine.process(pcm) >= 0
-        except Exception:
+        if not hasattr(self, 'porcupine') or not self.porcupine:
             return False
+        try:
+            result = self.porcupine.process(pcm)
+            return result >= 0
+        except Exception as e:
+            log(f"Porcupine process error: {e}")
+            return False
+
+    def validate_and_update_key(self, new_key):
+        """Attempts to initialize Porcupine with new key. Returns (bool, message)."""
+        try:
+            test_porcupine = pvporcupine.create(
+                access_key=new_key,
+                keywords=["jarvis"]
+            )
+            # Success! Update current engine
+            if self.porcupine:
+                self.porcupine.delete()
+            
+            self.porcupine = test_porcupine
+            self.access_key = new_key
+            self.sample_rate = self.porcupine.sample_rate
+            self.frame_length = self.porcupine.frame_length
+            
+            # Persist to .env
+            env_path = os.path.join(APP_ROOT, ".env")
+            config_manager.set_env_value(env_path, "PORCUPINE_ACCESS_KEY", new_key)
+            
+            self.update_status("Idle")
+            log("Porcupine key validated and updated.")
+            return True, "Key validated successfully! Voice engine active."
+        except Exception as e:
+            log(f"Key validation failed: {e}")
+            return False, f"Validation failed: {e}"
 
     def detect_clap(self, pcm):
         try:
@@ -416,13 +451,14 @@ class UnifiedLauncher:
         if not self.start_audio_stream(retries=6, retry_delay=2.0):
             log("No audio on startup.")
 
-        self.update_status("Idle")
+        status = "Idle" if self.porcupine else "Porcupine: Not Active"
+        self.update_status(status)
 
         while self.running:
             if not self.audio_stream:
                 self.update_status("Error: No Audio")
                 if self.start_audio_stream(retries=1):
-                    self.update_status("Idle")
+                    self.update_status(status)
                 else:
                     time.sleep(3)
                     continue
@@ -556,6 +592,10 @@ def main():
 
     threading.Thread(target=tray.run, daemon=True).start()
     threading.Thread(target=launcher.run, daemon=True).start()
+
+    # Phase B1: Auto-open dashboard if no access key
+    if not launcher.access_key:
+        QMetaObject.invokeMethod(launcher.dashboard, "show_window", Qt.QueuedConnection)
 
     sys.exit(qt_app.exec())
 

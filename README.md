@@ -27,93 +27,23 @@ Jarvis is a persistent background assistant for Windows that automates your work
 
 *   **OS:** Windows 10 or 11
 *   **Hardware:** Functional Microphone
-*   **Software (for Developers):** Python 3.10+
 *   **Configuration:** [Porcupine Access Key](https://picovoice.ai/console/) (Free tier available)
 
 ---
 
-## Quick Start (New Machine)
+## Getting Started
 
-**One-command setup:**
-```powershell
-.\bootstrap.ps1
-```
-This script will:
-1.  Check for Python 3.10+.
-2.  Create a local virtual environment (`.venv`).
-3.  Install dependencies.
-4.  Generate default config files (`.env`, `apps.json`, etc.).
-5.  Optionally build the standalone EXE.
-
----
-
-## Manual Installation & Setup
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/Sujatx/Jarvis.git
-cd Jarvis
-```
-
-### 2. Install Dependencies
-```bash
-python setup.py
-```
-*This will install requirements and create necessary config files.*
-
-### 3. Configure
-Open the `.env` file and paste your Porcupine Access Key:
-```env
-PORCUPINE_ACCESS_KEY=your_access_key_here
-```
-
-### 4. Run or Build
-**To run from source:**
-```bash
-.\.venv\Scripts\python jarvis.py
-```
-
-**To build the executable:**
-```bash
-python build.py
-```
-
----
-
-## Usage
-
-1.  **Launch:** Run `Jarvis.exe`. It will appear in your system tray.
-2.  **Configure:** Right-click the tray icon and select **Settings** to open the Dashboard.
-    *   **App Manager:** Toggle apps you want to launch. Use the arrow on browser cards to manage URLs.
-    *   **Settings:** Change your wake-word or switch between **Clap** and **Keyword** modes.
-3.  **Trigger:**
+1.  **Download:** Download the latest `Jarvis.exe` from the Releases page.
+2.  **Launch:** Run `Jarvis.exe`. It will appear in your system tray.
+3.  **Configure:** Right-click the tray icon and select **Settings** to open the Dashboard.
+    - Go to **Settings** → **Voice Engine**.
+    - Paste your **Porcupine Access Key** and click **Verify & Save**.
+    - Toggle the apps you want Jarvis to launch in the **App Manager**.
+4.  **Trigger:**
     *   Say **"Jarvis"** (or your custom wake-word).
     *   If in **Clap Mode**: Double-clap within 5 seconds.
     *   If in **Keyword Mode**: Jarvis triggers immediately after the wake-word.
-4.  **Result:** Jarvis plays a sound and launches your configured workspace.
-
----
-
-## Project Structure
-
-```text
-Jarvis/
-├── bootstrap.ps1         # One-click setup script
-├── setup.py              # Dependency & config installer
-├── build.py              # PyInstaller build wrapper
-├── jarvis.py             # Main background service & tray logic
-├── dashboard.py          # PySide6 Control Dashboard UI
-├── config_manager.py     # Atomic configuration persistence
-├── jarvis.spec           # PyInstaller build configuration
-├── apps.json             # Configured applications to launch
-├── urls.json             # Configured URLs to open
-├── config.json           # System settings (wake-word, mode)
-├── requirements.txt      # Python dependencies
-├── service.log           # Runtime activity & error logs
-├── .env                  # Secrets (Access Keys)
-├── icons/                # System tray icon (listening.ico)
-└── sounds/               # Audio feedback files (WAV)
-```
+5.  **Result:** Jarvis plays a sound and launches your configured workspace.
 
 ---
 
@@ -122,5 +52,3 @@ Jarvis/
 Released under the MIT License.
 
 ---
-
-Jarvis runs silently—until you speak. Then it listens only to you.

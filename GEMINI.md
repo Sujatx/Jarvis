@@ -17,72 +17,82 @@ The application has been successfully packaged into a standalone Windows executa
 - **UI:** A modern, translucent PySide6 dashboard with Windows 11 Mica/Acrylic effects, per-app URL management, and real-time event logging.
 - **Configuration:** Atomic persistence layer implemented via `config_manager.py`.
 - **Installation:** Automated via `bootstrap.ps1`, `setup.py`, and `build.py` for one-command setup.
+- **Access Key Management:** In-app management for Porcupine Access Key with live validation and startup hardening.
 
 ## Unified Development Roadmap
 
-### Phase 1: JARVIS DASHBOARD — FINAL MODERN UI PLAN (STATUS: COMPLETE)
-1. **Window-Level Modernization** (Done)
-   - Applied Windows 11 Mica/Acrylic via DWM API.
-   - Fallback: semi-transparent dark background.
-   - Rounded corners enabled for entire window.
-   - Font: Segoe UI Variable globally.
+### FINAL RELEASE PLAN — JARVIS v1.0 (STATUS: COMPLETE)
 
-2. **Global Theme** (Done)
-   - Sidebar: #1b1b1b
-   - Main background: #202020 (opaque/semi-transparent hybrid)
-   - Accent: #00e5ff
-   - Smooth hover transitions.
+#### Phase A — Access Key Integration (STATUS: COMPLETE)
+**A1. In-App Porcupine Key Management** (Done)
+**A2. Startup Hardening** (Done)
 
-3. **App Manager** (Done)
-   - Split into "Enabled Apps" and "Available Apps" sections.
-   - Toggling moves apps between sections.
-   - Modern card layout.
+#### Phase B — Release Readiness (STATUS: COMPLETE)
+**B1. First-Run Experience** (Done)
+**B2. Repo + Release Structure** (Done)
+**B3. Documentation Split** (Done)
 
-4. **Browser URL Management** (Done)
-   - Per-app collapsible URL sections for Chrome, Edge, and Firefox.
-   - Integrated directly into the app cards.
-   - Fully persistent via `config_manager`.
+#### Phase C — Packaging & QA (STATUS: COMPLETE)
+**C1. Build** (Done)
+**C2. Test Matrix** (Done)
 
-5. **Settings Page Enhancements** (Done)
-   - Card-style sections for Wake Word, Mode, and Restart.
-   - Modern input styling.
+#### Phase D — Release (STATUS: COMPLETE)
+- **Version:** Jarvis v1.0 (Released Jan 2026)
 
-6. **Status Page Enhancements** (Done)
-   - Real-time "Event Log" panel with timestamps.
-   - Displays last ~20 system events.
+#### Phase E — Next (POST-RELEASE)
+*Only after v1.0 ships:*
+- Text-to-Speech (TTS)
+- Spoken commands
+- AI automation
 
-7. **Scroll Behavior** (Done)
-   - Kinetic/momentum scrolling enabled (`QScroller`).
+## Developer: Installation & Setup
 
-8. **Persistence** (Done)
-   - All settings saved via `config_manager.py` with atomic writes.
+### 1. Quick Start
+```powershell
+.\bootstrap.ps1
+```
 
-9. **Implementation Sequence** (Done)
-   - All steps completed, tested, and packaged.
+### 2. Manual Setup
+```bash
+# Create venv
+python -m venv venv
+.\venv\Scripts\activate
 
-### Phase 2: Voice Interaction Upgrade (STATUS: PLANNED)
-*   **2.1 Text-to-Speech (TTS):** Allow Jarvis to speak back.
-*   **2.2 Voice Commands:** Replace/augment claps with spoken commands.
+# Install dependencies and create configs
+python setup.py
+```
 
-### Phase 3: Automation & AI (STATUS: PLANNED)
-*   **3.1 Advanced Automation:** Execute complex tasks beyond app launching.
-*   **3.2 AI Brain:** Integrate LLMs for natural language understanding and context memory.
+### 3. Run or Build
+**To run from source:**
+```bash
+python jarvis.py
+```
 
-## Building and Running
+**To build the executable:**
+```bash
+python build.py
+```
 
-1.  **One-Command Setup:**
-    ```powershell
-    .\bootstrap.ps1
-    ```
+## Project Structure
 
-2.  **Manual Setup:**
-    ```bash
-    python setup.py
-    ```
-
-3.  **Run the Application:**
-    - **Script:** `.\.venv\Scripts\python jarvis.py`
-    - **Executable:** Run `dist/Jarvis.exe`
+```text
+Jarvis/
+├── bootstrap.ps1         # One-click setup script
+├── setup.py              # Dependency & config installer
+├── build.py              # PyInstaller build wrapper
+├── jarvis.py             # Main background service & tray logic
+├── dashboard.py          # PySide6 Control Dashboard UI
+├── config_manager.py     # Atomic configuration persistence
+├── jarvis.spec           # PyInstaller build configuration
+├── apps.json             # Configured applications to launch
+├── urls.json             # Configured URLs to open
+├── config.json           # System settings (wake-word, mode)
+├── requirements.txt      # Python dependencies
+├── service.log           # Runtime activity & error logs
+├── .env                  # Secrets (Access Keys)
+├── icons/                # System tray icon (listening.ico)
+└── sounds/               # Audio feedback files (WAV)
+```
 
 ## Development Conventions
 
