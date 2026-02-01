@@ -34,3 +34,15 @@ service_error.log
 # PyInstaller build artifacts
 build/
 dist/
+
+# Phase 1: Event Bus and Session Memory databases
+jarvis_events.db
+jarvis_sessions.db
+test_events.db
+test_sessions.db
+test_correlation.db
+test_sync.db
+
+# Test artifacts
+.pytest_cache/
+*.db-journal

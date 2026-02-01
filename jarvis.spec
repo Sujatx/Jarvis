@@ -7,8 +7,8 @@ binaries = collect_dynamic_libs('PIL')
 
 # Add project-specific resources
 datas += [
-    ('icons', 'icons'), 
-    ('sounds', 'sounds'), 
+    ('resources/icons', 'resources/icons'), 
+    ('resources/sounds', 'resources/sounds'), 
     ('venv/Lib/site-packages/pvporcupine/resources', 'pvporcupine/resources'), 
     ('venv/Lib/site-packages/pvporcupine/lib', 'pvporcupine/lib')
 ]
@@ -48,6 +48,6 @@ exe = EXE(
         codesign_identity=None,
         entitlements_file=None,
         version='version.txt',
-        icon=[r'icons\listening.ico'],
+        icon=[r'resources\icons\listening.ico'],
     )
     

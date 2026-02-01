@@ -12,7 +12,9 @@ def clean_dirs():
 
 def build_exe():
     print("Building Jarvis.exe with PyInstaller...")
-    spec_file = "jarvis.spec"
+    
+    # Since build.py is now in scripts/, spec file is in parent directory
+    spec_file = os.path.join(os.path.dirname(__file__), "..", "jarvis.spec")
     
     if not os.path.exists(spec_file):
         print(f"Error: {spec_file} not found.")

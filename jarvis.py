@@ -1,4 +1,4 @@
-# jarvis.py — Phase 1 hardened + Phase 2 UI Integration
+# jarvis.py — Phase 1 Evolution: Event Bus Integration
 import os
 os.environ["PYINSTALLER_SAFE_MODE"] = "1"
 
@@ -11,10 +11,22 @@ import shutil
 import threading
 import webbrowser
 import socket
-import config_manager
+import asyncio
+from src.core import config_manager
+
+# Phase 1: Event Bus and Logging
+try:
+    from src.core.event_bus import get_event_bus, Event
+    from src.core.session_memory import get_session_memory
+    from src.core.logging_config import setup_logging, get_logger
+    PHASE1_ENABLED = True
+except ImportError:
+    # Graceful fallback if Phase 1 modules not available
+    PHASE1_ENABLED = False
+    print("[Warning] Phase 1 modules not found, running in legacy mode")
 
 # Dashboard UI
-from dashboard import DashboardWindow
+from src.ui.dashboard import DashboardWindow
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QMetaObject, Qt
 
@@ -58,8 +70,8 @@ load_dotenv(os.path.join(APP_ROOT, ".env"))
 
 BASE_DIR = os.path.dirname(__file__)
 LOG_PATH = os.path.join(APP_ROOT, "service.log") # Log to app root, not temp dir
-ICONS_DIR = resource_path("icons")
-SOUNDS_DIR = resource_path("sounds")
+ICONS_DIR = resource_path("resources/icons")
+SOUNDS_DIR = resource_path("resources/sounds")
 CREATE_NO_WINDOW = 0x08000000  # hide intermediate console windows for Popen
 
 # sound files (project-local)
@@ -186,6 +198,16 @@ class UnifiedLauncher:
         self.last_launch_time = 0.0
         self.last_wake_time = 0.0
 
+        # Phase 1: Event Bus and Session Memory
+        self.event_bus = None
+        self.session_memory = None
+        self.event_loop = None
+        self.event_loop_thread = None
+        self.current_session_id = None
+        
+        if PHASE1_ENABLED:
+            self._init_phase1()
+
         # Porcupine init
         builtin_keywords = pvporcupine.KEYWORDS
         if self.wake_word not in builtin_keywords:
@@ -199,6 +221,8 @@ class UnifiedLauncher:
                     keywords=[self.wake_word]
                 )
                 log(f"Wake word '{self.wake_word}' loaded.")
+                if PHASE1_ENABLED:
+                    self._publish_event("system.initialized", {"wake_word": self.wake_word})
             else:
                 log("No Porcupine Access Key found. Wake-word detection disabled.")
         except Exception as e:
@@ -221,6 +245,56 @@ class UnifiedLauncher:
         self.dashboard = None
         self.migrate_configs()
         self.load_dynamic_config()
+
+    def _init_phase1(self):
+        """Initialize Phase 1 components (Event Bus and Session Memory)"""
+        try:
+            # Start async event loop in background thread
+            self.event_loop = asyncio.new_event_loop()
+            self.event_loop_thread = threading.Thread(
+                target=self._run_event_loop,
+                daemon=True
+            )
+            self.event_loop_thread.start()
+            
+            # Initialize Event Bus
+            self.event_bus = get_event_bus()
+            
+            # Start event bus in the event loop
+            asyncio.run_coroutine_threadsafe(
+                self.event_bus.start(),
+                self.event_loop
+            )
+            
+            # Initialize Session Memory
+            self.session_memory = get_session_memory()
+            
+            # Create initial session
+            future = asyncio.run_coroutine_threadsafe(
+                self.session_memory.create_session("Jarvis Session"),
+                self.event_loop
+            )
+            self.current_session_id = future.result(timeout=5)
+            
+            log(f"[Phase 1] Event Bus and Session Memory initialized (Session ID: {self.current_session_id})")
+            
+        except Exception as e:
+            log(f"[Phase 1] Initialization failed: {e}")
+            self.event_bus = None
+            self.session_memory = None
+    
+    def _run_event_loop(self):
+        """Run async event loop in background thread"""
+        asyncio.set_event_loop(self.event_loop)
+        self.event_loop.run_forever()
+    
+    def _publish_event(self, event_type: str, payload: dict):
+        """Publish an event to the Event Bus (thread-safe)"""
+        if self.event_bus:
+            try:
+                self.event_bus.publish_sync(event_type, payload, source="UnifiedLauncher")
+            except Exception as e:
+                log(f"[Phase 1] Error publishing event: {e}")
 
     def migrate_configs(self):
         # Migration for urls.json
@@ -402,6 +476,9 @@ class UnifiedLauncher:
         self.clap_times.clear()
         log("Wake word detected. Active mode.")
         
+        # Phase 1: Publish wake detection event
+        self._publish_event("wake.detected", {"wake_word": self.wake_word, "timestamp": now})
+        
         self.update_status("Listening for claps...", wake=True)
         play_sound(SOUND_WAKE)
 
@@ -409,6 +486,10 @@ class UnifiedLauncher:
         self.is_active = False
         self.clap_times.clear()
         log("Returning to idle.")
+        
+        # Phase 1: Publish deactivation event
+        self._publish_event("activation.timeout", {})
+        
         self.update_status("Idle")
 
     # ------------------- Actions -------------------
@@ -422,6 +503,10 @@ class UnifiedLauncher:
         log("Trigger detected. Launching apps.")
         self.update_status("Launching...", action=True)
         play_sound(SOUND_CLAP)
+        
+        # Phase 1: Publish clap detection and launch start events
+        self._publish_event("clap.detected", {"timestamp": now})
+        self._publish_event("apps.launching", {"app_count": len(self.apps_to_launch)})
 
         for name, exe_path in self.apps_to_launch.items():
             log(f"Launching: {name} ({exe_path})")
@@ -430,8 +515,12 @@ class UnifiedLauncher:
             else:
                 try:
                     subprocess.Popen(f'start "" "{exe_path}"', shell=True, creationflags=CREATE_NO_WINDOW)
+                    # Phase 1: Publish successful app launch
+                    self._publish_event("app.launched", {"name": name, "path": exe_path})
                 except Exception as e:
                     log(f"Launch failed {name}: {e}")
+                    # Phase 1: Publish app launch failure
+                    self._publish_event("app.failed", {"name": name, "error": str(e)})
 
     def launch_browser(self, name, exe_path):
         if "chrome" in name.lower():
@@ -498,6 +587,26 @@ class UnifiedLauncher:
 
     def cleanup(self):
         log("Shutting down.")
+        
+        # Phase 1: Publish shutdown event and stop event bus
+        self._publish_event("system.shutdown", {})
+        
+        if self.event_bus:
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self.event_bus.stop(),
+                    self.event_loop
+                )
+                future.result(timeout=2)
+            except Exception as e:
+                log(f"[Phase 1] Error stopping event bus: {e}")
+        
+        if self.event_loop:
+            try:
+                self.event_loop.call_soon_threadsafe(self.event_loop.stop)
+            except Exception:
+                pass
+        
         self.stop_audio_stream()
         if hasattr(self, 'porcupine') and self.porcupine:
             try:

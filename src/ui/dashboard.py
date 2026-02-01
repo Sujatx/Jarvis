@@ -3,13 +3,13 @@ import os
 import time
 import threading
 import win32com.client
-import config_manager
+from src.core import config_manager
 import ctypes
 
 if getattr(sys, 'frozen', False):
     APP_ROOT = os.path.dirname(sys.executable)
 else:
-    APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+    APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QPushButton, QLineEdit, 
