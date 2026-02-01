@@ -46,3 +46,7 @@ test_sync.db
 # Test artifacts
 .pytest_cache/
 *.db-journal
+
+# Project Evolution and Context
+Jarvis_Evolution_Migration_Plan.md
+GEMINI.md
