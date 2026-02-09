@@ -52,6 +52,8 @@ class AppScanner:
         return sorted(list(unique_apps), key=lambda x: x['name'])
 
 class DashboardWindow(QMainWindow):
+    validation_finished = Signal(bool, str)
+
     def __init__(self, launcher_callback=None):
         super().__init__()
         self.launcher_callback = launcher_callback
