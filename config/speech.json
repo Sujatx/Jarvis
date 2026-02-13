@@ -1,0 +1,15 @@
+{
+  "whisper": {
+    "model": "medium",
+    "partial_model": "tiny",
+    "language": "en",
+    "device": "cpu",
+    "compute_type": "int8"
+  },
+  "audio": {
+    "sample_rate": 16000,
+    "chunk_size": 1024,
+    "silence_threshold": 150,
+    "silence_duration": 1.5
+  }
+}

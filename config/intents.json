@@ -1,0 +1,47 @@
+{
+  "exact_commands": {
+    "what time is it": {"action": "system_time"},
+    "what's the time": {"action": "system_time"},
+    "what's the date": {"action": "system_date"},
+    "what is the date": {"action": "system_date"},
+    "today's date": {"action": "system_date"}
+  },
+  "patterns": [
+    {
+      "regex": "open (\\w+)",
+      "intent": {"action": "open_app"}
+    },
+    {
+      "regex": "launch (\\w+)",
+      "intent": {"action": "open_app"}
+    },
+    {
+      "regex": "start (\\w+)",
+      "intent": {"action": "open_app"}
+    },
+    {
+      "regex": "close (\\w+)",
+      "intent": {"action": "close_app"}
+    },
+    {
+      "regex": "quit (\\w+)",
+      "intent": {"action": "close_app"}
+    },
+    {
+      "regex": "exit (\\w+)",
+      "intent": {"action": "close_app"}
+    },
+    {
+      "regex": "search for (.+)",
+      "intent": {"action": "search_web"}
+    },
+    {
+      "regex": "search (.+)",
+      "intent": {"action": "search_web"}
+    },
+    {
+      "regex": "google (.+)",
+      "intent": {"action": "search_web"}
+    }
+  ]
+}

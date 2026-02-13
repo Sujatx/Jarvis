@@ -228,13 +228,16 @@ class EventBus:
                      source: str = "unknown", correlation_id: Optional[str] = None):
         """
         Publish an event to the bus
-        
-        Args:
-            event_type: Type of event (e.g., "app.launched")
-            payload: Event-specific data
-            source: Component publishing the event
-            correlation_id: Optional correlation ID for tracking related events
         """
+        # Internal log (if available)
+        try:
+            from src.core.logging_config import get_logger
+            logger = get_logger()
+            if logger:
+                logger.info(f"[EventBus] Publishing: {event_type} from {source}")
+        except:
+            print(f"[EventBus] Publishing: {event_type}")
+
         if not self._running or not self._queue:
             raise RuntimeError("EventBus not started. Call start() first.")
         
@@ -400,9 +403,8 @@ def get_event_bus(db_path: str = None) -> EventBus:
         if _event_bus_instance is None:
             # Determine db_path
             if db_path is None:
-                # Use default path relative to script location
-                script_dir = os.path.dirname(os.path.abspath(__file__))
-                db_path = os.path.join(script_dir, "jarvis_events.db")
+                # Use default path in current working directory
+                db_path = "jarvis_events.db"
             
             _event_bus_instance = EventBus(db_path=db_path)
         

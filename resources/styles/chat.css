@@ -1,0 +1,43 @@
+/* Chat Widget Modern Styling */
+
+QScrollBar:vertical {
+  border: none;
+  background: #1e1e1e;
+  width: 10px;
+  margin: 0px 0px 0px 0px;
+}
+QScrollBar::handle:vertical {
+  background: #444;
+  min-height: 20px;
+  border-radius: 5px;
+}
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+  height: 0px;
+}
+
+QTextEdit {
+  background-color: #252525;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 10px;
+  color: #eee;
+  font-size: 14px;
+}
+
+/* Sidebar Item Styling */
+QListWidget::item {
+  padding: 12px;
+  margin: 4px 8px;
+  border-radius: 6px;
+  color: #bbb;
+}
+QListWidget::item:hover {
+  background-color: #2a2a2a;
+  color: white;
+}
+QListWidget::item:selected {
+  background-color: #2b2b2b;
+  border-left: 3px solid #00e5ff;
+  color: white;
+}

@@ -1,0 +1,52 @@
+[
+  {
+    "name": "open_app",
+    "description": "Launch a desktop application",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "app_name": { "type": "string" }
+      },
+      "required": ["app_name"]
+    }
+  },
+  {
+    "name": "close_app",
+    "description": "Close a running application or process",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "app_name": { "type": "string" }
+      },
+      "required": ["app_name"]
+    }
+  },
+  {
+    "name": "open_website",
+    "description": "Open a website in the default or specified browser",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "browser": { "type": "string" }
+      },
+      "required": ["url"]
+    }
+  },
+  {
+    "name": "system_time",
+    "description": "Get the current system time",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "system_date",
+    "description": "Get the current system date",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  }
+]

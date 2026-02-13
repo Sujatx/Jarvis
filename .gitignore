@@ -7,7 +7,7 @@ __pycache__/
 venv/
 .venv/
 
-# Environment variables (Porcupine key, etc.)
+# Environment variables and configs
 .env
 apps.json
 urls.json
@@ -34,19 +34,16 @@ service_error.log
 # PyInstaller build artifacts
 build/
 dist/
+*.spec
 
-# Phase 1: Event Bus and Session Memory databases
-jarvis_events.db
-jarvis_sessions.db
-test_events.db
-test_sessions.db
-test_correlation.db
-test_sync.db
+# Databases
+*.db
+*.db-journal
 
 # Test artifacts
 .pytest_cache/
-*.db-journal
 
 # Project Evolution and Context
-Jarvis_Evolution_Migration_Plan.md
+# keep these tracked for now
+jarvis_dev_plan.md
 GEMINI.md

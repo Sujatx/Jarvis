@@ -1,5 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import pvporcupine
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files, collect_dynamic_libs
+
+# Dynamically find pvporcupine paths
+porcupine_path = os.path.dirname(pvporcupine.__file__)
+porcupine_resources = os.path.join(porcupine_path, 'resources')
+porcupine_lib = os.path.join(porcupine_path, 'lib')
 
 hiddenimports = collect_submodules('PIL')
 datas = collect_data_files('PIL')
@@ -7,10 +14,10 @@ binaries = collect_dynamic_libs('PIL')
 
 # Add project-specific resources
 datas += [
-    ('resources/icons', 'resources/icons'), 
-    ('resources/sounds', 'resources/sounds'), 
-    ('venv/Lib/site-packages/pvporcupine/resources', 'pvporcupine/resources'), 
-    ('venv/Lib/site-packages/pvporcupine/lib', 'pvporcupine/lib')
+    ('resources', 'resources'), 
+    ('config', 'config'),
+    (porcupine_resources, 'pvporcupine/resources'), 
+    (porcupine_lib, 'pvporcupine/lib')
 ]
 
 a = Analysis(
@@ -42,12 +49,11 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
-        disable_windowed_traceback=False,
-        argv_emulation=False,
-        target_arch=None,
-        codesign_identity=None,
-        entitlements_file=None,
-        version='version.txt',
-        icon=[r'resources\icons\listening.ico'],
-    )
-    
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    version='version.txt',
+    icon=[r'resources\icons\listening.ico'],
+)
