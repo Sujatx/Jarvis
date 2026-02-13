@@ -27,6 +27,23 @@ Jarvis is an event-driven assistant for Windows that bridges the gap between nat
 
 ---
 
+## Essential Assets
+
+To keep the repository lightweight, large ML models and assets are not tracked. You must download/configure these manually:
+
+1.  **TTS Voice Model**: Download the [Northern English Male (Medium)](https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium.onnx) Piper model and place it in `resources/voices/`.
+2.  **API Configuration**: Create a `.env` file in the root directory with the following:
+    ```env
+    PORCUPINE_ACCESS_KEY=your_key_here
+    GEMINI_API_KEY=your_key_here
+    ```
+    *   Get a **Porcupine** key from [Picovoice Console](https://console.picovoice.ai/).
+    *   Get a **Gemini** key from [Google AI Studio](https://aistudio.google.com/).
+
+---
+
+---
+
 ## Quick Start
 
 ### Development Setup
@@ -38,8 +55,8 @@ Jarvis is an event-driven assistant for Windows that bridges the gap between nat
 python jarvis.py
 ```
 
-### Configuration
-- Ensure your **API Keys** (Porcupine and Gemini) are present in the `.env` file in the root directory.
+### Usage
+- Ensure your assets are in place (see section above).
 - Toggle **Voice Mode** in the dashboard to enable hands-free interaction.
 
 ---
