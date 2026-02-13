@@ -13,12 +13,21 @@ def clean_dirs():
 def build_exe():
     print("Building Jarvis.exe with PyInstaller...")
     
-    # Since build.py is now in scripts/, spec file is in parent directory
-    spec_file = os.path.join(os.path.dirname(__file__), "..", "jarvis.spec")
+    # Get the project root (one level up from scripts/)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(current_dir, ".."))
+    spec_file = os.path.join(project_root, "jarvis.spec")
+    
+    # Debugging path
+    print(f"Spec file path: {spec_file}")
     
     if not os.path.exists(spec_file):
         print(f"Error: {spec_file} not found.")
-        sys.exit(1)
+        # Try local path as fallback
+        spec_file = "jarvis.spec"
+        if not os.path.exists(spec_file):
+            print("Error: Spec file not found in root either.")
+            sys.exit(1)
 
     try:
         # Run PyInstaller

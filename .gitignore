@@ -34,7 +34,6 @@ service_error.log
 # PyInstaller build artifacts
 build/
 dist/
-*.spec
 
 # Databases
 *.db
