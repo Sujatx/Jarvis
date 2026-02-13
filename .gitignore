@@ -43,6 +43,10 @@ dist/
 # Test artifacts
 .pytest_cache/
 
+# Large Models and Binaries
+resources/voices/*.onnx
+resources/bin/
+
 # Project Evolution and Context
 # keep these tracked for now
 jarvis_dev_plan.md
