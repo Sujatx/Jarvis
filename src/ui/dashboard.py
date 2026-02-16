@@ -1,91 +1,169 @@
 """
-Dashboard Window — Fluent UI Conversational Agent
-- Uses qfluentwidgets for a modern Windows 11 style.
-- Preserves the strict Signal/Slot architecture.
+Elite Dashboard - Mark-X Visuals with Table-Based Alignment
+Guarantees Left for Jarvis and Right for User.
 """
 
-import sys
-import os
-import time
-from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFrame
-from PySide6.QtCore import Qt, Signal, Slot, QUrl
-from PySide6.QtGui import QIcon, QDesktopServices
-
-from qfluentwidgets import (
-    FluentWindow, NavigationItemPosition, FluentIcon as FIF,
-    SplashScreen, setTheme, Theme
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+    QLabel, QFrame, QTextEdit, QApplication, QLineEdit
 )
+from PySide6.QtCore import Qt, Signal, Slot, QSize, QTimer
+from PySide6.QtGui import QColor, QFont, QIcon, QTextCursor
 
-from src.core import config_manager
-from src.ui.widgets.chat_widget import ChatWidget
+from src.ui.widgets.face_widget import FaceWidget
+from src.core.logging_config import get_logger
+import os
 
-# Determine application root
-if getattr(sys, 'frozen', False):
-    APP_ROOT = os.path.dirname(sys.executable)
-else:
-    APP_ROOT = os.path.dirname(os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
+logger = get_logger(__name__)
 
-class DashboardWindow(FluentWindow):
+class DashboardWindow(QMainWindow):
+    update_status_signal = Signal(str)
+    display_signal = Signal(str, str) # text, role
+
     def __init__(self, launcher_callback=None):
         super().__init__()
-        self.launcher_callback = launcher_callback
+        self.launcher = launcher_callback
+        self.setWindowTitle("JARVIS")
+        self.resize(700, 800)
+        self.setStyleSheet("background-color: #000000;")
         
-        # Window Setup
-        self.setWindowTitle("Jarvis")
-        self.resize(1000, 750)
-        self.setMinimumSize(850, 600)
-        
-        # Center on screen
-        desktop = QApplication.primaryScreen().availableGeometry()
-        w, h = desktop.width(), desktop.height()
-        self.move(w//2 - self.width()//2, h//2 - self.height()//2)
-        
-        # Theme
-        setTheme(Theme.DARK)
-        
-        self.config_path = os.path.join(APP_ROOT, "config.json")
-        self.load_configs()
-        
-        # Initialize Sub-Interfaces
-        self.chat_interface = ChatWidget(self)
-        self.settings_interface = QWidget() # Placeholder for now
-        self.settings_interface.setObjectName("settings_interface")
-        
-        self.init_navigation()
-        self.splash_screen = SplashScreen(self.windowIcon(), self)
-        self.splash_screen.finish()
+        self._init_ui()
+        self._connect_events()
+        self.show()
 
-    def init_navigation(self):
-        self.addSubInterface(
-            self.chat_interface,
-            FIF.CHAT,
-            "Conversation",
-            NavigationItemPosition.TOP
-        )
+    def _init_ui(self):
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(15)
+
+        # 1. The Face
+        face_path = os.path.abspath("resources/face.png")
+        self.face = FaceWidget(face_path)
         
-        self.addSubInterface(
-            self.settings_interface,
-            FIF.SETTING,
-            "Settings",
-            NavigationItemPosition.BOTTOM
-        )
+        face_layout = QHBoxLayout()
+        face_layout.addStretch()
+        face_layout.addWidget(self.face)
+        face_layout.addStretch()
+        layout.addLayout(face_layout)
 
-    def load_configs(self):
-        self.system_config = config_manager.ensure_json(self.config_path, {"wake_word": "jarvis", "version": 2})
+        # 2. Status
+        self.lbl_status = QLabel("SYSTEM ONLINE")
+        self.lbl_status.setFont(QFont("Consolas", 14, QFont.Bold))
+        self.lbl_status.setAlignment(Qt.AlignCenter)
+        self.lbl_status.setStyleSheet("color: #00e5ff;")
+        layout.addWidget(self.lbl_status)
 
-    @Slot(str, str, str)
-    def update_status(self, status, last_wake, last_action):
-        # Delegate status updates to the chat widget (header)
-        if hasattr(self, 'chat_interface'):
-            self.chat_interface.set_status(status)
+        # 3. HTML Console
+        self.console = QTextEdit()
+        self.console.setReadOnly(True)
+        self.console.setFont(QFont("Consolas", 11))
+        self.console.setStyleSheet("""
+            QTextEdit {
+                background-color: #050505;
+                color: #8ffcff;
+                border: 1px solid #1a1a1a;
+                border-radius: 10px;
+                padding: 15px;
+            }
+        """)
+        layout.addWidget(self.console)
 
-    @Slot(str)
-    def add_error(self, msg):
-        # We can implement a InfoBar later
-        print(f"[UI Error] {msg}")
+        # 4. Text Input
+        input_container = QHBoxLayout()
+        input_container.addStretch()
+        self.txt_input = QLineEdit()
+        self.txt_input.setPlaceholderText("TYPE A COMMAND, SIR...")
+        self.txt_input.setFixedWidth(500)
+        self.txt_input.setFixedHeight(40)
+        self.txt_input.setStyleSheet("""
+            QLineEdit {
+                background-color: #0a0a0a;
+                color: #8ffcff;
+                border: 1px solid #1a1a1a;
+                border-radius: 20px;
+                padding-left: 15px;
+                font-family: 'Consolas';
+            }
+            QLineEdit:focus { border: 1px solid #00e5ff; }
+        """)
+        self.txt_input.returnPressed.connect(self._on_text_send)
+        input_container.addWidget(self.txt_input)
+        input_container.addStretch()
+        layout.addLayout(input_container)
 
-    @Slot()
+    def _on_text_send(self):
+        text = self.txt_input.text().strip()
+        if text:
+            self.display_signal.emit(text, "user")
+            self.txt_input.clear()
+            if self.launcher and self.launcher.event_bus:
+                self.launcher.event_bus.publish_sync("command.text", {"text": text})
+
+    def _connect_events(self):
+        self.update_status_signal.connect(self._on_status_update)
+        self.display_signal.connect(self._on_display_update)
+        if self.launcher and self.launcher.event_bus:
+            self.launcher.event_bus.subscribe("speech.partial", self._on_partial)
+            self.launcher.event_bus.subscribe("speech.transcribed", self._on_final)
+            self.launcher.event_bus.subscribe("speech.started", self._on_speaking)
+            self.launcher.event_bus.subscribe("speech.completed", self._on_idle)
+
+    @Slot(str, str)
+    def _on_display_update(self, text, role):
+        # Use a table to force absolute left/right alignment
+        if role == "user":
+            html = f'''
+            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                    <td align="right">
+                        <div style="color: #8ffcff; font-family: Consolas; margin-bottom: 10px;">
+                            <b>YOU:</b> {text}
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            '''
+        else:
+            html = f'''
+            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                    <td align="left">
+                        <div style="color: #00e5ff; font-family: Consolas; margin-bottom: 10px;">
+                            <b>JARVIS:</b> {text}
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            '''
+        self.console.insertHtml(html)
+        self.console.insertHtml("<br>")
+        self.console.moveCursor(QTextCursor.End)
+
+    def _on_status_update(self, status):
+        self.lbl_status.setText(status.upper())
+        if "Listening" in status: self.face.set_state("listening")
+        elif "Thinking" in status or "Acting" in status: self.face.set_state("thinking")
+        else: self.face.set_state("idle")
+
+    def _on_partial(self, event):
+        text = event.payload.get("text", "")
+        self.lbl_status.setText(f"LISTENING: {text}...")
+
+    def _on_final(self, event):
+        text = event.payload.get("text", "")
+        self.display_signal.emit(text, "user")
+
+    def _on_speaking(self, event):
+        text = event.payload.get("text", "")
+        self.face.set_state("speaking")
+        self.display_signal.emit(text, "assistant")
+
+    def _on_idle(self, event):
+        self.face.set_state("idle")
+
     def show_window(self):
         self.show()
-        self.activateWindow()
         self.raise_()
+        self.activateWindow()

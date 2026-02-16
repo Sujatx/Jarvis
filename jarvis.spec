@@ -12,14 +12,17 @@ try:
 except (ImportError, AttributeError):
     PORCUPINE_FOUND = False
 
+# ELITE: Ensure new engines are discovered
 hiddenimports = collect_submodules('PIL')
+hiddenimports += ['faster_whisper', 'groq', 'sounddevice', 'piper', 'playwright', 'pygetwindow']
+
 datas = collect_data_files('PIL')
 binaries = collect_dynamic_libs('PIL')
 
 # Add project-specific resources
+# ELITE: Removed 'config' as it's now handled dynamically by LLM/Subconscious
 datas += [
     ('resources', 'resources'), 
-    ('config', 'config'),
 ]
 
 if PORCUPINE_FOUND:

@@ -33,17 +33,18 @@ if (-not (Test-Path ".venv")) {
 }
 
 $pythonExe = ".\.venv\Scripts\python.exe"
+$pipExe = ".\.venv\Scripts\pip.exe"
 
 if (-not (Test-Path $pythonExe)) {
     Write-Error "Virtual environment creation failed. $pythonExe not found."
     exit 1
 }
 
-# 3. Run Setup
-Write-Host "Running setup.py..." -ForegroundColor Yellow
-& $pythonExe setup.py
+# 3. Install Dependencies
+Write-Host "Installing dependencies from requirements.txt..." -ForegroundColor Yellow
+& $pipExe install -r requirements.txt
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Setup failed."
+    Write-Error "Dependency installation failed."
     exit $LASTEXITCODE
 }
 
@@ -51,7 +52,7 @@ if ($LASTEXITCODE -ne 0) {
 $response = Read-Host "Do you want to build the standalone EXE now? (Y/N)"
 if ($response -match "^[Yy]") {
     Write-Host "Running build.py..." -ForegroundColor Yellow
-    & $pythonExe build.py
+    & $pythonExe scripts/build.py
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Build failed."
         exit $LASTEXITCODE
@@ -59,5 +60,4 @@ if ($response -match "^[Yy]") {
 }
 
 Write-Host "`nBootstrap Complete!" -ForegroundColor Green
-Write-Host "To run dev mode: $pythonExe jarvis.py"
-Write-Host "To run EXE:      .\dist\Jarvis.exe"
+Write-Host "To run: .\.venv\Scripts\python.exe jarvis.py"

@@ -1,7 +1,0 @@
-{
-  "piper": {
-    "voice_model": "resources/voices/en_GB-northern_english_male-medium.onnx",
-    "speed": 1.0,
-    "volume": 0.8
-  }
-}

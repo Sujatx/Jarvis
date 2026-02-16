@@ -113,6 +113,15 @@ def setup_logging(
     console_handler.setFormatter(TextFormatter())
     logger.addHandler(console_handler)
     
+    # --- NOISE REDUCTION ---
+    # Suppress verbose 3rd party libraries
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("faster_whisper").setLevel(logging.WARNING)
+    logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+    logging.getLogger("pvporcupine").setLevel(logging.WARNING)
+    
     return logger
 
 

@@ -25,6 +25,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
+        playwright install chromium
 
     - name: Build Executable
       run: python scripts/build.py

@@ -8,56 +8,50 @@ Well, here I am building my own **Jarvis** from scratch, leveraging everything I
 
 ---
 
+## Dataflow Representation
+
+![Jarvis Dataflow](resources/dataflow.svg)
+
 ---
 
-## Core System
+## Core Architecture: Session-Based
 
-Jarvis is an event-driven assistant for Windows that bridges the gap between natural language and system control. It is built on a modular architecture that prioritizes privacy, reliability, and security.
+Jarvis is a stateful assistant for Windows that bridges the gap between natural language and system control using a continuous interaction model.
 
 ### How it Works:
 
-*   **Event-Driven Core:** All components communicate via an asynchronous `EventBus`. This decoupled design ensures that perception (voice/text), cognition (LLM/Logic), and execution (Tools) remain independent and highly responsive.
-*   **Offline-First Intelligence:** Common system intents (opening apps, checking time, help) are handled locally using pattern matching. This provides zero-latency responses and ensures core functionality works without an internet connection.
-*   **Secure Execution Pipeline:** Every system action is routed through a validation layer. Commands are checked against a strict registry and sanitized by a `SecurityManager` to prevent harmful access.
-*   **LLM Tool-Calling:** For complex requests, Jarvis uses an LLM to interpret intent and generate structured tool calls. This allows for flexible, natural language control of your workspace.
-*   **Modular Plugin Architecture:** System capabilities are implemented as standalone tools. New functionality can be added by simply dropping a new tool plugin into the system.
-*   **Privacy-First Perception:** Audio processing and wake-word detection happen locally. The microphone is only gated open when the system is actively listening for a command.
-
----
+*   **Continuous Sessions:** Wake-word activation starts a 30-second window for back-and-forth dialogue without repeating the name.
+*   **Persistent Audio:** The microphone stream remains open during sessions to eliminate hardware startup lag.
+*   **Neural Reasoning:** Powered by **Groq (Llama 3.3 70B)**, Jarvis generates structured plans for OS and Web tasks.
+*   **Synchronous Execution:** A sequential flow (Think -> Act -> Speak) prevents hardware conflicts and echo loops.
+*   **Subconscious Persistence:** SQLite-backed memory for user preferences and session summaries.
 
 ---
 
 ## Essential Assets
 
-To keep the repository lightweight, large ML models and assets are not tracked. You must download/configure these manually:
+Large models and assets are not tracked. Configure these manually:
 
-1.  **TTS Voice Model**: Download the [Northern English Male (Medium)](https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium.onnx) Piper model and place it in `resources/voices/`.
-2.  **API Configuration**: Create a `.env` file in the root directory with the following:
+1.  **TTS Voice Model**: Download the [Northern English Male](https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium.onnx) Piper model to `resources/voices/`.
+2.  **API Configuration**: Create a `.env` file in the root directory:
     ```env
     PORCUPINE_ACCESS_KEY=your_key_here
-    GEMINI_API_KEY=your_key_here
+    GROQ_API_KEY=your_key_here
     ```
-    *   Get a **Porcupine** key from [Picovoice Console](https://console.picovoice.ai/).
-    *   Get a **Gemini** key from [Google AI Studio](https://aistudio.google.com/).
-
----
 
 ---
 
 ## Quick Start
 
-### Development Setup
+### Setup
 ```bash
-# Bootstrap the environment
-.\bootstrap.ps1
-
-# Run Jarvis
-python jarvis.py
+.\scripts\bootstrap.ps1
 ```
 
-### Usage
-- Ensure your assets are in place (see section above).
-- Toggle **Voice Mode** in the dashboard to enable hands-free interaction.
+### Run
+```bash
+python jarvis.py
+```
 
 ---
 
@@ -65,25 +59,20 @@ python jarvis.py
 
 ```
 Jarvis/
-├── jarvis.py                     # Main orchestrator
-├── src/                          # Source modules
-│   ├── core/                     # Messaging, Security, and Memory
-│   ├── cognitive/                # Reasoning and Intent Routing
-│   ├── tools/                    # Modular System Tools (Plugins)
-│   ├── perception/               # Audio and Speech Processing
-│   └── execution/                # Plan Validation and Execution
-├── config/                       # System and Intent configuration
-└── resources/                    # Icons, Sounds, and Voice Models
+├── jarvis.py                     # Orchestrator
+├── src/                          
+│   ├── core/                     # Session, Memory, EventBus
+│   ├── engine/                   # Ear, Brain, Mouth
+│   ├── skills/                   # System & Web Primitives
+│   └── ui/                       # Dashboard & Widgets
+├── resources/                    # Icons, Sounds, Models
+└── scripts/                      # Bootstrap utilities
 ```
-
----
 
 ---
 
 ## License
 
 Released under the MIT License.
-
----
 
 **"Sometimes you gotta run before you can walk."** — Tony Stark
