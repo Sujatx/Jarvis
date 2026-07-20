@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Jarvis</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
+  #scene { display: block; width: 100vw; height: 100vh; }
+  #hud { position: fixed; left: 10px; bottom: 8px; font: 11px/1.4 ui-monospace, Consolas, monospace;
+    color: #ffcf7a; opacity: .5; letter-spacing: .5px; pointer-events: none; text-shadow: 0 0 6px #f90; }
+  #fps { position: fixed; right: 10px; top: 8px; font: 11px/1.4 ui-monospace, monospace; color: #ffcf7a;
+    opacity: 0; pointer-events: none; }
+  #status { position: fixed; inset: 0; display: none; flex-direction: column; gap: 14px;
+    align-items: center; justify-content: center; text-align: center; pointer-events: none;
+    color: #ffe6b0; text-shadow: 0 0 22px #f80; letter-spacing: 3px; }
+  #status .big { font: 700 clamp(30px,6vw,66px)/1 ui-monospace, Consolas, monospace; }
+  #status .sub { font: 500 clamp(13px,2vw,20px)/1.4 ui-monospace, monospace; opacity: .85; letter-spacing: 2px; }
+  #subtitle { position: fixed; left: 0; right: 0; bottom: 7%; padding: 0 8%; text-align: center;
+    font: 500 clamp(14px,2.2vw,24px)/1.5 ui-monospace, Consolas, monospace; color: #ffe9c8;
+    text-shadow: 0 0 12px #d70; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  #err { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align:center;
+    color: #ffcf7a; font: 500 16px/1.6 ui-monospace, monospace; padding: 2em; }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="hud">state: idle</div>
+<div id="fps">-- fps</div>
+<div id="status"><div class="big">JARVIS</div><div class="sub">initializing…</div></div>
+<div id="subtitle"></div>
+<div id="err">WebGL unavailable in this browser/window.</div>
+<script>
+"use strict";
+(function () {
+  // ---------------- URL hooks ----------------
+  const QS = new URLSearchParams(location.search);
+  const SHOT = QS.get("shot");
+  const SHOT_T = parseFloat(QS.get("t") || "1200");
+  const MOCKSTATE = QS.get("mockstate");
+
+  // ---------------- Deterministic RNG ----------------
+  let _seed = (Date.now() >>> 0);
+  function srand(s) { _seed = s >>> 0; }
+  function rng() {
+    _seed = (_seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(_seed ^ (_seed >>> 15), 1 | _seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  srand(SHOT ? 1234 : (Date.now() >>> 0));
+
+  // ---------------- GL setup ----------------
+  const canvas = document.getElementById("scene");
+  const hudEl = document.getElementById("hud");
+  const fpsEl = document.getElementById("fps");
+  const statusEl = document.getElementById("status");
+  const statusSub = statusEl.querySelector(".sub");
+  const subEl = document.getElementById("subtitle");
+  const DPR = Math.min(1.25, window.devicePixelRatio || 1);
+
+  const gl = canvas.getContext("webgl", { antialias: true, alpha: false, preserveDrawingBuffer: true })
+          || canvas.getContext("experimental-webgl", { preserveDrawingBuffer: true });
+  if (!gl) { document.getElementById("err").style.display = "flex"; return; }
+
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  function program(vs, fs) {
+    const p = gl.createProgram();
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  }
+
+  // ---------------- Shared vertex transform ----------------
+  const XFORM = `
+    uniform mat3 u_rot;
+    uniform float u_scale, u_aspect, u_time, u_level, u_converge, u_assemble, u_jitter;
+    vec3 place(vec3 sphere, vec3 rnd, float phase) {
+      vec3 base = mix(rnd * 1.4, sphere, u_assemble);
+      float breath = 1.0 + 0.05 * sin(u_time * 1.4 + phase) + 0.16 * u_level;
+      base *= mix(1.0, 0.82, u_converge) * breath;
+      base += u_jitter * vec3(sin(phase*12.0+u_time*9.0), cos(phase*7.0+u_time*8.0), sin(phase*3.0+u_time*7.0)) * 0.035;
+      return u_rot * base;
+    }
+    vec4 clipOf(vec3 p) { return vec4(p.x * u_scale / u_aspect, p.y * u_scale, 0.0, 1.0); }
+  `;
+
+  // ---------------- Neuron nodes (points) ----------------
+  const pointVS = XFORM + `
+    attribute vec3 a_pos, a_rnd;
+    attribute float a_phase, a_shell;
+    uniform float u_psize, u_glow, u_halo, u_signalSpeed;
+    varying float v_bright;
+    void main() {
+      vec3 p = place(a_pos, a_rnd, a_phase);
+      gl_Position = clipOf(p);
+      float depth = p.z * 0.5 + 0.5;
+      // each node flickers as signals arrive (its own phase against the firing clock)
+      float fire = pow(0.5 + 0.5 * sin((u_time * u_signalSpeed * 6.2831) + a_phase * 25.0), 6.0);
+      float tw = 0.5 + 0.5 * sin(u_time * 2.4 + a_phase * 6.2831);
+      v_bright = (0.30 + 0.70 * depth) * (0.5 + 0.5 * tw) * u_glow * (0.7 + 1.6 * fire) * (0.6 + 0.4 * a_shell);
+      float size = u_psize * (0.5 + 0.8 * depth) * (1.0 + 0.5 * u_level) * (1.0 + 0.7 * fire);
+      gl_PointSize = size * (u_halo > 0.5 ? 3.0 : 1.0);
+    }`;
+  const pointFS = `
+    precision highp float;
+    uniform vec3 u_colA, u_colB;
+    uniform float u_hue, u_halo, u_intensity;
+    varying float v_bright;
+    void main() {
+      float d = length(gl_PointCoord - 0.5);
+      float a = (u_halo > 0.5) ? exp(-d * d * 9.0) * 0.5 : smoothstep(0.5, 0.0, d);
+      gl_FragColor = vec4(mix(u_colA, u_colB, u_hue), a * v_bright * u_intensity);
+    }`;
+
+  // ---------------- Synapse connections (curved, firing) ----------------
+  const lineVS = XFORM + `
+    attribute vec3 a_pos, a_rnd;
+    attribute float a_phase, a_seg, a_cphase;
+    uniform float u_glow, u_signalSpeed;
+    varying float v_bright;
+    void main() {
+      vec3 p = place(a_pos, a_rnd, a_phase);
+      gl_Position = clipOf(p);
+      float depth = p.z * 0.5 + 0.5;
+      float base = (0.14 + 0.42 * depth) * u_glow;
+      float signal = fract(u_time * u_signalSpeed + a_cphase);   // a pulse travels A->B
+      float g = fract(signal - a_seg);
+      float pulse = pow(1.0 - g, 11.0);
+      v_bright = base * (0.30 + 3.4 * pulse);
+    }`;
+  const lineFS = `
+    precision highp float;
+    uniform vec3 u_colA, u_colB;
+    uniform float u_hue, u_intensity;
+    varying float v_bright;
+    void main() { gl_FragColor = vec4(mix(u_colA, u_colB, u_hue), v_bright * u_intensity); }`;
+
+  // ---------------- Core glow ----------------
+  const quadVS = `attribute vec2 a_p; varying vec2 v_uv;
+    void main(){ v_uv = a_p; gl_Position = vec4(a_p, 0.0, 1.0); }`;
+  const coreFS = `precision highp float; varying vec2 v_uv;
+    uniform float u_aspect, u_core, u_level, u_hue, u_time; uniform vec3 u_colA, u_colB;
+    void main(){
+      vec2 uv = v_uv; uv.x *= u_aspect;
+      float d = length(uv);
+      float pulse = 0.85 + 0.15 * sin(u_time * 2.0);
+      float core = exp(-d * d * 9.0) * (u_core * (0.45 + 0.45 * u_level)) * pulse;
+      float halo = exp(-d * d * 1.9) * 0.06 * u_core;
+      gl_FragColor = vec4(mix(u_colA, u_colB, u_hue) * (core + halo), 1.0);
+    }`;
+
+  const P_POINT = program(pointVS, pointFS);
+  const P_LINE = program(lineVS, lineFS);
+  const P_CORE = program(quadVS, coreFS);
+
+  // ---------------- Geometry: nodes + curved connections ----------------
+  const N = 1400;
+  const pos = new Float32Array(N * 3), rnd = new Float32Array(N * 3),
+        phase = new Float32Array(N), shell = new Float32Array(N);
+  (function buildNodes() {
+    const GA = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < N; i++) {
+      const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(Math.max(0, 1 - y * y)), th = GA * i;
+      const g = rng();
+      const rad = g < 0.28 ? 0.55 + rng() * 0.35 : 0.95 + rng() * 0.09;
+      pos[i*3] = Math.cos(th) * r * rad; pos[i*3+1] = y * rad; pos[i*3+2] = Math.sin(th) * r * rad;
+      rnd[i*3] = rng()*2-1; rnd[i*3+1] = rng()*2-1; rnd[i*3+2] = rng()*2-1;
+      phase[i] = rng(); shell[i] = g < 0.28 ? 0.5 : 1.0;
+    }
+  })();
+
+  // connect each node to a few near neighbours (sampled), dedup, curve each link
+  const conns = [], seen = new Set();
+  for (let i = 0; i < N; i++) {
+    const cand = [];
+    for (let s = 0; s < 46; s++) {
+      const j = (rng() * N) | 0; if (j === i) continue;
+      const dot = pos[i*3]*pos[j*3] + pos[i*3+1]*pos[j*3+1] + pos[i*3+2]*pos[j*3+2];
+      cand.push([dot, j]);
+    }
+    cand.sort((a, b) => b[0] - a[0]);
+    let added = 0;
+    for (const [dot, j] of cand) {
+      if (dot < 0.82) break;
+      const key = i < j ? i * 100000 + j : j * 100000 + i;
+      if (seen.has(key)) continue;
+      seen.add(key); conns.push(i, j); if (++added >= 3) break;
+    }
+  }
+
+  const SEG = 9, lp = [], lr = [], lph = [], lsg = [], lcp = [];
+  const A = [0,0,0], Bp = [0,0,0];
+  function curvePt(i, j, t, out) {
+    const ax=pos[i*3], ay=pos[i*3+1], az=pos[i*3+2], bx=pos[j*3], by=pos[j*3+1], bz=pos[j*3+2];
+    const mx=(ax+bx)/2, my=(ay+by)/2, mz=(az+bz)/2, ml=Math.hypot(mx,my,mz)||1;
+    const chord=Math.hypot(ax-bx,ay-by,az-bz), bow=1 + (chord*0.45)/ml; // bulge outward -> curved synapse
+    const cx=mx*bow, cy=my*bow, cz=mz*bow, u=1-t;
+    out[0]=u*u*ax+2*u*t*cx+t*t*bx; out[1]=u*u*ay+2*u*t*cy+t*t*by; out[2]=u*u*az+2*u*t*cz+t*t*bz;
+  }
+  for (let c = 0; c < conns.length; c += 2) {
+    const i = conns[c], j = conns[c+1], cph = rng(), ph = phase[i];
+    for (let s = 0; s < SEG; s++) {
+      const t0 = s/SEG, t1 = (s+1)/SEG;
+      curvePt(i, j, t0, A); curvePt(i, j, t1, Bp);
+      for (const [pp, tt] of [[A, t0], [Bp, t1]]) {
+        lp.push(pp[0], pp[1], pp[2]);
+        lr.push(rnd[i*3]*(1-tt)+rnd[j*3]*tt, rnd[i*3+1]*(1-tt)+rnd[j*3+1]*tt, rnd[i*3+2]*(1-tt)+rnd[j*3+2]*tt);
+        lph.push(ph); lsg.push(tt); lcp.push(cph);
+      }
+    }
+  }
+  const linePos = new Float32Array(lp), lineRnd = new Float32Array(lr),
+        linePh = new Float32Array(lph), lineSg = new Float32Array(lsg), lineCp = new Float32Array(lcp);
+  const lineCount = linePh.length;
+
+  // ---------------- Buffers ----------------
+  function buf(data) { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return b; }
+  const B = {
+    pos: buf(pos), rnd: buf(rnd), phase: buf(phase), shell: buf(shell),
+    lpos: buf(linePos), lrnd: buf(lineRnd), lph: buf(linePh), lsg: buf(lineSg), lcp: buf(lineCp),
+    quad: buf(new Float32Array([-1,-1, 1,-1, -1,1, 1,1])),
+  };
+  function attrib(prog, name, b, size) {
+    const loc = gl.getAttribLocation(prog, name); if (loc < 0) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+  }
+
+  const GOLD_A = [1.0, 0.78, 0.36], GOLD_B = [1.0, 0.30, 0.16];
+
+  // ---------------- State + eased energy ----------------
+  const STATES = {
+    booting:   { motion: 0.18, glow: 0.60, signal: 0.50, converge: 0.10, hue: 0.0, core: 0.5, jitter: 0.15 },
+    idle:      { motion: 0.07, glow: 0.55, signal: 0.20, converge: 0.00, hue: 0.0, core: 0.45, jitter: 0.05 },
+    listening: { motion: 0.12, glow: 0.85, signal: 0.30, converge: 0.50, hue: 0.0, core: 0.65, jitter: 0.05 },
+    thinking:  { motion: 0.40, glow: 0.85, signal: 1.00, converge: 0.05, hue: 0.0, core: 0.70, jitter: 0.35 },
+    speaking:  { motion: 0.15, glow: 1.00, signal: 0.55, converge: 0.00, hue: 0.0, core: 1.00, jitter: 0.08 },
+    alert:     { motion: 0.30, glow: 1.00, signal: 0.80, converge: 0.00, hue: 1.0, core: 1.00, jitter: 0.40 },
+  };
+  const E = { motion: .07, glow: .55, signal: .2, converge: 0, hue: 0, core: .45, jitter: .05 };
+  let curState = "idle", alertOn = false, curStatus = "";
+  let levelTarget = 0, level = 0, yaw = 0, pitch = 0.35;
+  let lastOverlayState = null, lastOverlayStatus = null;
+
+  function ease(cur, tgt, dt) { const tau = tgt > cur ? 0.5 : 1.0; return cur + (tgt - cur) * (1 - Math.exp(-dt / tau)); }
+  function applyTargets(dt) {
+    const s = STATES[curState] || STATES.idle;
+    for (const k in E) E[k] = ease(E[k], alertOn && k === "hue" ? 1.0 : s[k], dt);
+    level = level + (levelTarget - level) * (1 - Math.exp(-dt / 0.09));
+  }
+  function signalSpeed() { return 0.10 + 1.35 * E.signal + 0.9 * level; }
+
+  function rotMat(yaw, pitch) {
+    const cy = Math.cos(yaw), sy = Math.sin(yaw), cx = Math.cos(pitch), sx = Math.sin(pitch);
+    return new Float32Array([cy, 0, -sy, sy*sx, cx, cy*sx, sy*cx, -sx, cy*cx]);
+  }
+  function setCommon(prog, t) {
+    gl.uniformMatrix3fv(gl.getUniformLocation(prog, "u_rot"), false, rotMat(yaw, pitch));
+    gl.uniform1f(gl.getUniformLocation(prog, "u_scale"), 0.72);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_aspect"), aspect);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_time"), t);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_level"), level);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_converge"), E.converge);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_assemble"), assemble);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_jitter"), E.jitter);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_glow"), E.glow);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_hue"), E.hue);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_signalSpeed"), signalSpeed());
+    gl.uniform3fv(gl.getUniformLocation(prog, "u_colA"), GOLD_A);
+    gl.uniform3fv(gl.getUniformLocation(prog, "u_colB"), GOLD_B);
+  }
+
+  // ---------------- Layout ----------------
+  let W = 0, H = 0, aspect = 1;
+  function layout() {
+    W = Math.floor(window.innerWidth * DPR); H = Math.floor(window.innerHeight * DPR);
+    canvas.width = W; canvas.height = H;
+    canvas.style.width = window.innerWidth + "px"; canvas.style.height = window.innerHeight + "px";
+    aspect = W / H; gl.viewport(0, 0, W, H);
+  }
+
+  // ---------------- Draw ----------------
+  let assemble = SHOT ? 1 : 0;
+  function draw(t) {
+    gl.clearColor(0.02, 0.022, 0.03, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.disable(gl.DEPTH_TEST);
+
+    // core glow
+    gl.useProgram(P_CORE);
+    gl.uniform1f(gl.getUniformLocation(P_CORE, "u_aspect"), aspect);
+    gl.uniform1f(gl.getUniformLocation(P_CORE, "u_core"), E.core);
+    gl.uniform1f(gl.getUniformLocation(P_CORE, "u_level"), level);
+    gl.uniform1f(gl.getUniformLocation(P_CORE, "u_hue"), E.hue);
+    gl.uniform1f(gl.getUniformLocation(P_CORE, "u_time"), t);
+    gl.uniform3fv(gl.getUniformLocation(P_CORE, "u_colA"), GOLD_A);
+    gl.uniform3fv(gl.getUniformLocation(P_CORE, "u_colB"), GOLD_B);
+    attrib(P_CORE, "a_p", B.quad, 2);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // synapse connections (curved, firing pulses)
+    gl.useProgram(P_LINE);
+    setCommon(P_LINE, t);
+    gl.uniform1f(gl.getUniformLocation(P_LINE, "u_intensity"), 0.85);
+    attrib(P_LINE, "a_pos", B.lpos, 3); attrib(P_LINE, "a_rnd", B.lrnd, 3);
+    attrib(P_LINE, "a_phase", B.lph, 1); attrib(P_LINE, "a_seg", B.lsg, 1); attrib(P_LINE, "a_cphase", B.lcp, 1);
+    gl.drawArrays(gl.LINES, 0, lineCount);
+
+    // neuron nodes: soft halo then crisp
+    gl.useProgram(P_POINT);
+    setCommon(P_POINT, t);
+    gl.uniform1f(gl.getUniformLocation(P_POINT, "u_psize"), Math.max(1.6, 2.4 * DPR));
+    attrib(P_POINT, "a_pos", B.pos, 3); attrib(P_POINT, "a_rnd", B.rnd, 3);
+    attrib(P_POINT, "a_phase", B.phase, 1); attrib(P_POINT, "a_shell", B.shell, 1);
+    gl.uniform1f(gl.getUniformLocation(P_POINT, "u_halo"), 1.0);
+    gl.uniform1f(gl.getUniformLocation(P_POINT, "u_intensity"), 0.32);
+    gl.drawArrays(gl.POINTS, 0, N);
+    gl.uniform1f(gl.getUniformLocation(P_POINT, "u_halo"), 0.0);
+    gl.uniform1f(gl.getUniformLocation(P_POINT, "u_intensity"), 0.9);
+    gl.drawArrays(gl.POINTS, 0, N);
+  }
+
+  function step(dt, t) {
+    applyTargets(dt);
+    yaw += dt * (0.05 + 0.5 * E.motion);
+    pitch = 0.30 + 0.10 * Math.sin(t * 0.2);
+    if (assemble < 1) assemble = Math.min(1, assemble + dt / 1.5);
+  }
+
+  // ---------------- Overlays ----------------
+  function updateOverlays() {
+    if (curState === lastOverlayState && curStatus === lastOverlayStatus) return;
+    lastOverlayState = curState; lastOverlayStatus = curStatus;
+    statusEl.style.display = (curState === "booting") ? "flex" : "none";
+    if (curState === "booting") statusSub.textContent = curStatus || "initializing…";
+    const showSub = curStatus && (curState === "listening" || curState === "thinking" || curState === "speaking");
+    subEl.textContent = showSub ? curStatus : "";
+    subEl.style.opacity = showSub ? "1" : "0";
+  }
+
+  // ---------------- Polling ----------------
+  let lastOk = performance.now();
+  function poll() {
+    fetch("/state", { cache: "no-store" }).then(r => r.json()).then(d => {
+      lastOk = performance.now();
+      curState = STATES[d.state] ? d.state : "idle";
+      alertOn = !!d.alert; curStatus = d.status || "";
+      levelTarget = Math.max(0, Math.min(1, d.level || 0));
+    }).catch(() => {});
+  }
+  if (!SHOT && !MOCKSTATE) setInterval(poll, 100);
+  if (MOCKSTATE) {
+    curState = STATES[MOCKSTATE] ? MOCKSTATE : "idle"; alertOn = (MOCKSTATE === "alert");
+    curStatus = { booting: "Loading speech recognition…", listening: "Listening…",
+                  thinking: "Thinking…", speaking: "All systems nominal, Boss." }[MOCKSTATE] || "";
+  }
+
+  // ---------------- Main loop ----------------
+  let last = performance.now(), fpsT = 0, fpsN = 0, showFps = false, rafId = 0;
+  function frame(now) {
+    let dt = (now - last) / 1000; last = now; if (dt > 0.05) dt = 0.05;
+    if (MOCKSTATE) {
+      const tt = now / 1000;
+      levelTarget = MOCKSTATE === "speaking" ? 0.5 + 0.45 * Math.abs(Math.sin(tt * 3.2))
+                  : MOCKSTATE === "listening" ? 0.25 + 0.1 * Math.abs(Math.sin(tt * 4)) : 0;
+    } else if (!SHOT && performance.now() - lastOk > 1500) {
+      curState = "idle"; alertOn = false; levelTarget = 0;
+    }
+    const t = now / 1000;
+    step(dt, t); draw(t);
+    hudEl.textContent = "state: " + curState + (alertOn ? " !" : "") + "  lvl " + level.toFixed(2);
+    updateOverlays();
+    fpsT += dt; fpsN++;
+    if (fpsT >= 0.5) { if (showFps) fpsEl.textContent = Math.round(fpsN / fpsT) + " fps"; fpsT = 0; fpsN = 0; }
+    rafId = requestAnimationFrame(frame);
+  }
+
+  // ---------------- Shot mode ----------------
+  function renderShot() {
+    srand(1234); layout();
+    curState = STATES[SHOT] ? SHOT : "idle"; alertOn = (SHOT === "alert");
+    const s = STATES[curState];
+    for (const k in E) E[k] = (k === "hue" && alertOn) ? 1.0 : s[k];
+    level = levelTarget = curState === "speaking" ? (0.5 + 0.4 * Math.abs(Math.sin(SHOT_T * 0.006)))
+          : curState === "listening" ? 0.3 : 0;
+    assemble = 1;
+    const tsec = SHOT_T / 1000;
+    yaw = (0.05 + 0.5 * s.motion) * tsec; pitch = 0.30 + 0.10 * Math.sin(tsec * 0.2);
+    draw(tsec); updateOverlays();
+    hudEl.textContent = "state: " + curState + (alertOn ? " !" : "") + "  lvl " + level.toFixed(2);
+  }
+
+  // ---------------- Boot ----------------
+  window.addEventListener("keydown", (e) => {
+    if (assemble < 1) assemble = 1;
+    if (e.key === "f" || e.key === "F") { showFps = !showFps; fpsEl.style.opacity = showFps ? 0.6 : 0; }
+  });
+  window.addEventListener("resize", () => { if (SHOT) renderShot(); else layout(); });
+
+  if (SHOT) renderShot();
+  else { layout(); rafId = requestAnimationFrame(frame); }
+})();
+</script>
+</body>
+</html>

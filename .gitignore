@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Runtime voice bus (lives outside repo anyway; ignore if symlinked/copied in)
+voice-line/bus/
+*.voice_state
+*.voice_waveform
+*.voice_alert
+
+# Model / TTS caches
+.cache/
+models/
+*.wav
+*.mp3
+
+# Kiosk throwaway profiles
+kiosk-profile/
+
+# OS / editor
+Thumbs.db
+.DS_Store
